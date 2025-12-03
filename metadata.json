@@ -1,0 +1,8 @@
+{
+  "name": "Bisita Iligan",
+  "description": "A comprehensive tourism guide for Iligan City, featuring attraction details, directories, maps, and reviews.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

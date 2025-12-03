@@ -1,0 +1,19 @@
+1. Implement the backend - MongoDB
+    Store the information about the place
+    Store fuzzy logic of the place
+    User authecation (user, admin)
+    Rating data about the place
+    media information with on device compression
+
+
+
+2. Remove other icon on the map
+3. Implement route guidance of jeep on the current position of the User and including the fare based on the distance and mandated the fare from LTFRB
+4. Implement the search function with filtering show whether it restaurant or msme or hotel or ligo-anan
+5. Build a mobile app using the PWA instead
+6. in the home add the seasonal events
+7. in the home when the user press the some locatio, it should show the location button as well go to the map.
+8. Add animation it seem to boring to say the least
+9. Add ads banner in the home also
+10. tour guide need delibration
+11. 
