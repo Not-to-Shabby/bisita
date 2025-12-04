@@ -31,8 +31,8 @@ const Directory: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <Header showBack title="Directory" />
-      <div className="px-6 pt-20">
-        <div className="relative mb-6">
+      <div className="px-6 pt-20 animate-fade-slide-up">
+        <div className="relative mb-6 animate-fade-slide-up">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
@@ -49,15 +49,16 @@ const Directory: React.FC = () => {
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
-            {categories.map(cat => (
+          {categories.map((cat, index) => (
                 <button 
                     key={cat}
                     onClick={() => setFilterCategory(cat)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors border ${
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors border animate-fade-slide-up ${
                         filterCategory === cat 
                         ? 'bg-sky-600 text-white border-sky-600 shadow-sm' 
                         : 'bg-white text-slate-700 border-gray-200 hover:border-sky-300'
                     }`}
+              style={{ animationDelay: `${index * 60}ms` }}
                 >
                     {cat}
                 </button>
@@ -65,11 +66,12 @@ const Directory: React.FC = () => {
         </div>
 
         <div className="flex flex-col gap-4">
-          {filteredItems.length > 0 ? filteredItems.map((item) => (
+          {filteredItems.length > 0 ? filteredItems.map((item, index) => (
             <div 
                 key={item.id} 
                 onClick={() => navigate(`/attraction/${item.id}`)}
-                className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer"
+            className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer animate-fade-slide-up"
+            style={{ animationDelay: `${index * 70}ms` }}
             >
               <img 
                 src={item.image} 
@@ -92,7 +94,7 @@ const Directory: React.FC = () => {
               <ChevronRight className="text-gray-300" />
             </div>
           )) : (
-             <div className="text-center py-10 text-slate-400">
+             <div className="text-center py-10 text-slate-400 animate-fade-slide-up">
                  No listings found.
              </div>
           )}

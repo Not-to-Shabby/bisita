@@ -107,19 +107,21 @@ const AttractionDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      <div className="relative h-80">
-        <img 
-            src={attraction.image} 
-            alt={attraction.name} 
-            className="w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/800/600?nature' }}
-        />
+      <div className="relative h-80 overflow-hidden bg-slate-900 animate-gradient-pan">
+      <img 
+        src={attraction.image} 
+        alt={attraction.name} 
+        className="w-full h-full object-cover scale-105 opacity-90"
+        onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/800/600?nature' }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
+      <div className="absolute inset-x-0 top-0 z-10 animate-fade-slide-up">
         <Header showBack transparent />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+      </div>
       </div>
 
-      <div className="bg-white -mt-8 rounded-t-3xl relative p-6 shadow-sm min-h-screen">
-         <div className="flex flex-col items-center -mt-16 mb-4">
+      <div className="bg-white -mt-8 rounded-t-3xl relative p-6 shadow-sm min-h-screen animate-fade-slide-up">
+       <div className="flex flex-col items-center -mt-16 mb-4 animate-fade-slide-up motion-delay-50">
             <div className="bg-white p-2 rounded-xl shadow-md">
                 <div className="w-16 h-16 bg-sky-100 rounded-lg flex items-center justify-center">
                     <MapPin className="text-sky-600" size={32} />
@@ -127,14 +129,14 @@ const AttractionDetail: React.FC = () => {
             </div>
          </div>
 
-         <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">{attraction.name}</h1>
-         <p className="text-center text-sky-600 font-medium text-sm mb-6">{attraction.location}</p>
+       <h1 className="text-2xl font-bold text-slate-900 text-center mb-1 animate-fade-slide-up motion-delay-100">{attraction.name}</h1>
+       <p className="text-center text-sky-600 font-medium text-sm mb-6 animate-fade-slide-up motion-delay-150">{attraction.location}</p>
          
-         <p className="text-slate-600 leading-relaxed mb-6 text-sm text-justify">
+       <p className="text-slate-600 leading-relaxed mb-6 text-sm text-justify animate-fade-slide-up motion-delay-200">
             {attraction.description}
          </p>
 
-         <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-100 shadow-sm">
+       <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-100 shadow-sm animate-fade-slide-up motion-delay-250">
              <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                  <Info size={18} className="text-sky-600" />
                  Visitor Information
@@ -157,7 +159,7 @@ const AttractionDetail: React.FC = () => {
              </div>
              
              {attraction.tips && (
-                 <div className="mt-4 bg-sky-100 p-3 rounded-lg">
+               <div className="mt-4 bg-sky-100 p-3 rounded-lg animate-float-pulse">
                      <p className="text-xs text-sky-800 font-medium">💡 Tip: {attraction.tips}</p>
                  </div>
              )}
@@ -165,7 +167,7 @@ const AttractionDetail: React.FC = () => {
 
          <button 
             onClick={() => navigate('/scan')}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 mb-8 transition-colors"
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 mb-8 transition-colors animate-fade-slide-up motion-delay-300"
          >
             <ScanLine size={20} />
             Scan QR for History & Facts
@@ -181,17 +183,17 @@ const AttractionDetail: React.FC = () => {
                 See All
             </button>
          </div>
-         <div className="flex gap-4 overflow-x-auto no-scrollbar mb-8">
-            <GuideCard name="Alex Reyes" status="Available" img="https://picsum.photos/100/100?random=60" />
-            <GuideCard name="Sarah Labao" status="Available" img="https://picsum.photos/100/100?random=61" />
-            <GuideCard name="Mang Jose" status="On Tour" img="https://picsum.photos/100/100?random=62" />
+        <div className="flex gap-4 overflow-x-auto no-scrollbar mb-8 animate-carousel-glide">
+          <GuideCard name="Alex Reyes" status="Available" img="https://picsum.photos/100/100?random=60" delayClass="motion-delay-50" />
+          <GuideCard name="Sarah Labao" status="Available" img="https://picsum.photos/100/100?random=61" delayClass="motion-delay-100" />
+          <GuideCard name="Mang Jose" status="On Tour" img="https://picsum.photos/100/100?random=62" delayClass="motion-delay-150" />
          </div>
 
          {/* Souvenirs */}
          <h3 className="font-bold text-slate-900 mb-4">Nearby & Pasalubong</h3>
-         <div className="flex gap-4 overflow-x-auto no-scrollbar">
-            <StallCard name="Cheding's Peanuts" status="Must Buy" img={getMedia('chedingsPeanuts')} />
-            <StallCard name="Sukang Pinakurat" status="Local Vinegar" img={getMedia('sukangPinakurat')} />
+        <div className="flex gap-4 overflow-x-auto no-scrollbar animate-carousel-glide">
+          <StallCard name="Cheding's Peanuts" status="Must Buy" img={getMedia('chedingsPeanuts')} delayClass="motion-delay-50" />
+          <StallCard name="Sukang Pinakurat" status="Local Vinegar" img={getMedia('sukangPinakurat')} delayClass="motion-delay-100" />
          </div>
       </div>
       
@@ -199,7 +201,7 @@ const AttractionDetail: React.FC = () => {
       <div className="fixed bottom-6 right-6 z-40">
         <button 
             onClick={() => navigate('/write-review')}
-            className="bg-sky-600 text-white p-4 rounded-full shadow-xl hover:bg-sky-700 transition-colors"
+          className="bg-sky-600 text-white p-4 rounded-full shadow-xl hover:bg-sky-700 transition-colors animate-marker-pop"
         >
             <span className="font-bold text-sm">Write Review</span>
         </button>
@@ -208,8 +210,8 @@ const AttractionDetail: React.FC = () => {
   );
 };
 
-const GuideCard = ({ name, status, img }: { name: string, status: string, img: string }) => (
-    <div className="flex flex-col items-center min-w-[100px]">
+const GuideCard = ({ name, status, img, delayClass = '' }: { name: string; status: string; img: string; delayClass?: string }) => (
+  <div className={`flex flex-col items-center min-w-[100px] animate-fade-slide-up ${delayClass}`}>
         <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white shadow-md mb-2">
             <img src={img} alt={name} className="w-full h-full object-cover" />
         </div>
@@ -218,8 +220,8 @@ const GuideCard = ({ name, status, img }: { name: string, status: string, img: s
     </div>
 );
 
-const StallCard = ({ name, status, img }: { name: string, status: string, img: string }) => (
-    <div className="min-w-[160px]">
+const StallCard = ({ name, status, img, delayClass = '' }: { name: string; status: string; img: string; delayClass?: string }) => (
+  <div className={`min-w-[160px] animate-fade-slide-up ${delayClass}`}>
         <div className="h-32 rounded-xl overflow-hidden mb-2 bg-gray-200 border border-gray-100">
             <img src={img} alt={name} className="w-full h-full object-cover" onError={(e) => (e.target as HTMLImageElement).src='https://picsum.photos/200/200?shop'} />
         </div>

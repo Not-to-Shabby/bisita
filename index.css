@@ -13,6 +13,10 @@
     z-index: 0;
     font-family: inherit;
   }
+
+  .leaflet-bottom {
+    bottom: 90px !important;
+  }
 }
 
 @layer utilities {
@@ -23,5 +27,94 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  @keyframes fade-slide-up {
+    0% { opacity: 0; transform: translateY(24px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes float-pulse {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+    100% { transform: translateY(0px); }
+  }
+
+  @keyframes sheet-rise {
+    0% { transform: translateY(32px) scale(0.98); opacity: 0; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  @keyframes carousel-glide {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-10%); }
+  }
+
+  @keyframes marker-pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    80% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes gradient-pan {
+    0% { transform: translateY(0); opacity: 0.5; }
+    100% { transform: translateY(12%); opacity: 0.8; }
+  }
+
+  @keyframes shimmer {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+
+  .animate-fade-slide-up {
+    opacity: 0;
+    animation: fade-slide-up 0.7s ease-out forwards;
+  }
+
+  .animate-sheet-rise {
+    animation: sheet-rise 0.45s ease-out forwards;
+  }
+
+  .animate-float-pulse {
+    animation: float-pulse 3s ease-in-out infinite;
+  }
+
+  .animate-carousel-glide {
+    animation: carousel-glide 20s ease-in-out infinite alternate;
+  }
+
+  .animate-marker-pop {
+    animation: marker-pop 0.45s ease-out forwards;
+  }
+
+  .animate-gradient-pan {
+    animation: gradient-pan 16s ease-in-out infinite alternate;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2.5s ease-in-out infinite;
+  }
+
+  .motion-delay-100 { animation-delay: 0.1s; }
+  .motion-delay-200 { animation-delay: 0.2s; }
+  .motion-delay-300 { animation-delay: 0.3s; }
+  .motion-delay-400 { animation-delay: 0.4s; }
+  .motion-delay-500 { animation-delay: 0.5s; }
+  .motion-delay-600 { animation-delay: 0.6s; }
+  .motion-delay-700 { animation-delay: 0.7s; }
+  .motion-delay-800 { animation-delay: 0.8s; }
+  .motion-delay-900 { animation-delay: 0.9s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-slide-up,
+  .animate-sheet-rise,
+  .animate-float-pulse,
+  .animate-carousel-glide,
+  .animate-marker-pop,
+  .animate-gradient-pan,
+  .animate-shimmer {
+    animation: none !important;
   }
 }

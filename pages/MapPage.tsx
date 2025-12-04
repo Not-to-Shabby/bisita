@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import BottomNav from '../components/BottomNav';
-import { Search, SlidersHorizontal, Plus, Minus, Navigation, Bus, ArrowLeft, X, Store, ChevronRight, Star, Layers, Clock, Banknote, MapPin, Footprints, Bike, AlertTriangle } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Minus, Navigation, Bus, ArrowLeft, X, Store, ChevronRight, Star, Layers, Clock, Banknote, MapPin, Footprints, Bike, AlertTriangle, Loader2 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMap, useMapEvents } from 'react-leaflet';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import { getMedia } from '../data/mediaLibrary';
+import { attractionsApi, MapLocation } from '../services/api';
 
 // Fix for default marker icon in React Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -170,7 +171,7 @@ const transportGuides: LocationData[] = [
     {
         id: 'paseo',
         name: 'Paseo de Santiago',
-        position: [8.2436, 124.2344],
+        position: [8.2416, 124.2394],
         description: 'Seaside park with the "Iligan City" sign.',
         image: getMedia('paseoDeSantiago'),
         transport: {
@@ -536,7 +537,7 @@ const MsmeAdBanner: React.FC<MsmeAdBannerProps> = ({ nearestLocationId, onDismis
     };
 
     return (
-        <div className="w-full px-4 pb-2 z-[450] md:fixed md:bottom-24 md:right-4 md:w-96 md:p-0">
+        <div className="w-full px-4 pb-2 z-[450] md:fixed md:bottom-24 md:right-4 md:w-96 md:p-0 animate-sheet-rise">
             <div className="bg-white rounded-xl shadow-lg p-3 relative border border-gray-100">
                 {/* Close Button */}
                 <button 
@@ -611,7 +612,7 @@ const LocationDetailSheet: React.FC<LocationDetailSheetProps> = ({ location, onC
     const [activeTab, setActiveTab] = useState<'transport' | 'details' | 'reviews'>('transport');
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-[500] animate-in slide-in-from-bottom duration-300 max-h-[85vh] overflow-y-auto pb-24 md:pb-6 md:w-96 md:left-auto md:right-4 md:bottom-4 md:rounded-2xl">
+        <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-[500] animate-sheet-rise max-h-[85vh] overflow-y-auto pb-24 md:pb-6 md:w-96 md:left-auto md:right-4 md:bottom-4 md:rounded-2xl">
             {/* Drag Handle (Mobile Visual Cue) */}
             <div className="w-full flex justify-center pt-3 pb-1 md:hidden">
                 <div className="w-12 h-1.5 bg-gray-200 rounded-full"></div>
@@ -830,6 +831,41 @@ const MapPage: React.FC = () => {
       let isMounted = true;
 
       const loadLocations = async () => {
+          // First, try to fetch from our backend API
+          try {
+              const apiResponse = await attractionsApi.getMapLocations();
+              
+              if (apiResponse.data?.locations && apiResponse.data.locations.length > 0) {
+                  // Transform API response to LocationData format
+                  const apiLocations: LocationData[] = apiResponse.data.locations.map((loc: MapLocation) => ({
+                      id: loc.id,
+                      name: loc.name,
+                      position: [loc.lat, loc.lng] as [number, number],
+                      description: loc.description || `A ${loc.category.toLowerCase()} in Iligan.`,
+                      image: getMedia(loc.id as any) || 'https://picsum.photos/400/300?travel',
+                      transport: loc.transport && loc.transport.length > 0 ? {
+                          vehicle: loc.transport[0].mode,
+                          route: loc.transport[0].description,
+                          note: loc.transport[0].tips || '',
+                          fareRegular: loc.transport[0].fare,
+                          duration: loc.transport[0].travelTime,
+                          segments: loc.transport.map(t => t.mode as 'Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus'),
+                      } : undefined,
+                  }));
+
+                  // Merge with static transport guides for enhanced info
+                  const merged = mergeWithTransportGuides(apiLocations);
+                  if (isMounted) {
+                      setLocations(merged.length > 0 ? merged : apiLocations);
+                      setOsmError(null);
+                  }
+                  return;
+              }
+          } catch (apiError) {
+              console.log('Backend API unavailable, trying OSM...');
+          }
+
+          // Fallback to OpenStreetMap
           try {
               const dynamicSpots = await fetchDynamicPlaces();
               if (!isMounted) return;
@@ -904,21 +940,15 @@ const MapPage: React.FC = () => {
   return (
     <div className="h-screen w-full relative bg-gray-100 flex flex-col">
        {/* CSS to ensure popup visibility and correct control positioning */}
-       <style>{`
-         .leaflet-popup { z-index: 1000 !important; }
-         .leaflet-container { font-family: inherit; }
-         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; }
-                 .leaflet-bottom { bottom: 90px !important; } /* Lift controls above BottomNav */
-                 @keyframes growPulse {
-                     0% { transform: scale(0.9); opacity: 0.6; }
-                     50% { transform: scale(1.05); opacity: 1; }
-                     100% { transform: scale(0.9); opacity: 0.6; }
-                 }
-       `}</style>
+             <style>{`
+                 .leaflet-popup { z-index: 1000 !important; }
+                 .leaflet-container { font-family: inherit; }
+                 .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; }
+             `}</style>
 
              {isLoading && (
                  <div className="absolute inset-0 z-[550] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
-                         <div className="w-20 h-20 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center shadow-lg animate-[growPulse_1.3s_ease-in-out_infinite]">
+                     <div className="w-20 h-20 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center shadow-lg animate-float-pulse">
                                  <Navigation size={28} className="text-sky-600" />
                          </div>
                          <p className="mt-4 text-slate-600 font-semibold tracking-tight">Fetching Iligan spots…</p>
@@ -930,28 +960,28 @@ const MapPage: React.FC = () => {
        {!isSearchOpen ? (
          <>
             {/* Back Button */}
-            <div className="absolute top-6 left-4 z-[400]">
-                <button 
-                  onClick={() => navigate(-1)} 
-                  className="bg-white p-3 rounded-full shadow-md text-slate-700 hover:bg-gray-50 border border-gray-100 transition-transform active:scale-95"
-                >
-                    <ArrowLeft size={20} />
-                </button>
+                        <div className="absolute top-6 left-4 z-[400] animate-fade-slide-up">
+                                 <button 
+                                     onClick={() => navigate(-1)} 
+                                     className="bg-white p-3 rounded-full shadow-md text-slate-700 hover:bg-gray-50 border border-gray-100 transition-transform active:scale-95"
+                                 >
+                                         <ArrowLeft size={20} />
+                                 </button>
             </div>
             {/* Search Toggle Button */}
-            <div className="absolute top-6 right-4 z-[400]">
-                <button 
-                  onClick={() => setIsSearchOpen(true)} 
-                  className="bg-white p-3 rounded-full shadow-md text-sky-600 hover:bg-gray-50 border border-gray-100 transition-transform active:scale-95"
-                >
-                    <Search size={20} />
-                </button>
+                        <div className="absolute top-6 right-4 z-[400] animate-fade-slide-up motion-delay-100">
+                                 <button 
+                                     onClick={() => setIsSearchOpen(true)} 
+                                     className="bg-white p-3 rounded-full shadow-md text-sky-600 hover:bg-gray-50 border border-gray-100 transition-transform active:scale-95"
+                                 >
+                                         <Search size={20} />
+                                 </button>
             </div>
          </>
        ) : (
          /* Expanded Search Bar */
-         <div className="absolute top-6 left-4 right-4 z-[400]">
-           <div className="bg-white rounded-xl shadow-xl border border-gray-100 p-2 flex items-center gap-3 animate-in fade-in zoom-in duration-200">
+                 <div className="absolute top-6 left-4 right-4 z-[400] animate-fade-slide-up">
+                     <div className="bg-white rounded-xl shadow-xl border border-gray-100 p-2 flex items-center gap-3">
               <button 
                 onClick={() => setIsSearchOpen(false)} 
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-slate-500"
@@ -976,24 +1006,24 @@ const MapPage: React.FC = () => {
        )}
 
             {osmError && !isOsmErrorDismissed && (
-                <div className="absolute top-24 left-4 right-4 z-[420]">
-                    <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 shadow-lg flex items-start gap-3">
-                        <div className="bg-white/70 w-8 h-8 rounded-full flex items-center justify-center text-orange-600">
-                            <AlertTriangle size={18} />
-                        </div>
-                        <div className="flex-1 text-sm text-orange-800">
-                            <p className="font-semibold">Offline transport guide</p>
-                            <p className="text-xs leading-relaxed mt-1">{osmError}</p>
-                        </div>
-                        <button
-                            onClick={handleDismissOsmError}
-                            aria-label="Dismiss offline notice"
-                            className="text-[10px] font-bold uppercase tracking-wide text-orange-700 hover:text-orange-900"
-                        >
-                            Dismiss
-                        </button>
-                    </div>
-                </div>
+                <div className="absolute top-24 left-4 right-4 z-[420] animate-fade-slide-up">
+                     <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 shadow-lg flex items-start gap-3">
+                         <div className="bg-white/70 w-8 h-8 rounded-full flex items-center justify-center text-orange-600">
+                             <AlertTriangle size={18} />
+                         </div>
+                         <div className="flex-1 text-sm text-orange-800">
+                             <p className="font-semibold">Offline transport guide</p>
+                             <p className="text-xs leading-relaxed mt-1">{osmError}</p>
+                         </div>
+                         <button
+                             onClick={handleDismissOsmError}
+                             aria-label="Dismiss offline notice"
+                             className="text-[10px] font-bold uppercase tracking-wide text-orange-700 hover:text-orange-900"
+                         >
+                             Dismiss
+                         </button>
+                     </div>
+                 </div>
             )}
 
        <div className="flex-1 relative z-0">
@@ -1013,7 +1043,7 @@ const MapPage: React.FC = () => {
             {locations.map((loc) => {
                 const initial = loc.name.charAt(0).toUpperCase() || 'B';
                 const iconHtml = `
-                    <div class="w-12 h-12 rounded-full border-2 border-white shadow-lg bg-gradient-to-br from-sky-500 via-sky-600 to-sky-700 flex items-center justify-center">
+                    <div class="w-12 h-12 rounded-full border-2 border-white shadow-lg bg-gradient-to-br from-sky-500 via-sky-600 to-sky-700 flex items-center justify-center animate-marker-pop">
                         <span class="text-white font-bold text-lg">${initial}</span>
                     </div>
                 `;

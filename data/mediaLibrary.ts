@@ -41,4 +41,11 @@ const mediaLibrary: Record<MediaKey, string> = {
 
 export const getMedia = (key: MediaKey): string => mediaLibrary[key] ?? DEFAULT_MEDIA;
 
+export const getMediaSafe = (key: string): string => {
+  if (key in mediaLibrary) {
+    return mediaLibrary[key as MediaKey];
+  }
+  return DEFAULT_MEDIA;
+};
+
 export const getFallbackMedia = (): string => DEFAULT_MEDIA;

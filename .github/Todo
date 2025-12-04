@@ -3,12 +3,13 @@
     Store fuzzy logic of the place
     User authecation (user, admin)
     Rating data about the place
-    media information with on device compression
+    media information with on device compression (database limitation? free tier)
+    CRUD implementation
 
 
 
 2. Remove other icon on the map
-3. Implement route guidance of jeep on the current position of the User and including the fare based on the distance and mandated the fare from LTFRB
+3. Implement route guidance of jeep on the current position of the User and including the fare based on the distance and mandated the fare from LTFRB for (transport) routing    
 4. Implement the search function with filtering show whether it restaurant or msme or hotel or ligo-anan
 5. Build a mobile app using the PWA instead
 6. in the home add the seasonal events
@@ -16,4 +17,6 @@
 8. Add animation it seem to boring to say the least
 9. Add ads banner in the home also
 10. tour guide need delibration
-11. 
+11. Add google maps api (place api) for fetching landmark information ([paid]) place api -> json -> LLM -> json cache -> bisita
+12. QR based logic scan to see the information
+13. Add the tour guide in navbar also the user account of the tour guide.
