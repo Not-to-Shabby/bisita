@@ -26,21 +26,35 @@ const PORT = process.env.PORT || 5000;
 // MIDDLEWARE
 // ======================
 
-// CORS configuration - support multiple frontend ports during development
+// CORS configuration - support frontend URLs
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
   'http://localhost:3001',
+  // Vercel deployment URLs
+  'https://bisita.vercel.app',
+  'https://bisita-iligan.vercel.app',
 ];
+
+// Add any Vercel preview URLs (they have random subdomains)
+const isVercelPreview = (origin: string): boolean => {
+  return origin.includes('vercel.app') || origin.includes('vercel.sh');
+};
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
+    // Allow requests with no origin (like health checks, mobile apps, curl)
     if (!origin) return callback(null, true);
     
+    // Allow if in allowedOrigins list
     if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow Vercel preview deployments
+    if (isVercelPreview(origin)) {
       return callback(null, true);
     }
     
@@ -49,6 +63,8 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Log rejected origins for debugging
+    console.log('CORS rejected origin:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -119,27 +135,30 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // ======================
 
 const startServer = async (): Promise<void> => {
-  try {
-    // Connect to MongoDB
-    await connectDB();
-
-    // Configure services
-    configureCloudinary();
-    configurePassport();
-
-    // Start server
-    app.listen(PORT, () => {
-      console.log(`
+  // Start server FIRST so health checks pass immediately
+  const server = app.listen(PORT, () => {
+    console.log(`
 🌊 Bisita Iligan API Server
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ Server running on port ${PORT}
 ✅ Environment: ${process.env.NODE_ENV || 'development'}
 ✅ Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      `);
-    });
+    `);
+  });
+
+  try {
+    // Connect to MongoDB after server is listening
+    await connectDB();
+
+    // Configure services
+    configureCloudinary();
+    configurePassport();
+    
+    console.log('✅ All services initialized');
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('❌ Failed to initialize services:', error);
+    server.close();
     process.exit(1);
   }
 };
