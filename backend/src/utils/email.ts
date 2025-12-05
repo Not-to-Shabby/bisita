@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Use environment variable directly - dotenv is loaded in main index.ts
+const resend = new Resend(process.env.RESEND_API_KEY || 'mock_key_for_development');
 
 const emailFrom = process.env.EMAIL_FROM || 'Bisita Iligan <onboarding@resend.dev>';
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';

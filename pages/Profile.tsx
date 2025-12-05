@@ -17,7 +17,12 @@ import {
   MapPin,
   Calendar,
   BadgeCheck,
-  AlertCircle
+  AlertCircle,
+  Settings,
+  Users,
+  Mountain,
+  Store,
+  BarChart3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -300,6 +305,44 @@ const Profile: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </div>
+          </>
+        )}
+
+        {/* Admin section - only show for admins */}
+        {user?.role === 'admin' && (
+          <>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Admin Dashboard</h3>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+              <MenuRow
+                icon={Mountain}
+                label="Manage Attractions"
+                onClick={() => navigate('/admin/attractions')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
+                icon={Store}
+                label="Manage Businesses"
+                onClick={() => navigate('/admin/businesses')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
+                icon={Users}
+                label="Manage Users"
+                onClick={() => alert('User management coming soon')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
+                icon={BadgeCheck}
+                label="Verifications"
+                onClick={() => navigate('/admin/verifications')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
+                icon={BarChart3}
+                label="Analytics"
+                onClick={() => alert('Analytics coming soon')}
+              />
             </div>
           </>
         )}

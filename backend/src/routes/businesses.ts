@@ -86,6 +86,266 @@ router.get(
 );
 
 // ======================
+// GET ALL BUSINESSES (Admin)
+// ======================
+router.get(
+  '/admin/all',
+  authenticate,
+  requireAdmin,
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const businesses = await Business.find({})
+        .populate('ownerId', 'username email avatar')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      res.json({ businesses });
+    } catch (error) {
+      console.error('Error fetching all businesses:', error);
+      res.status(500).json({ error: 'Failed to fetch businesses' });
+    }
+  }
+);
+
+// ======================
+// GET BUSINESSES FOR MAP
+// ======================
+router.get(
+  '/map/locations',
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const businesses = await Business.find({
+        status: 'active',
+        isActive: true,
+        'location.coordinates.lat': { $exists: true, $ne: null },
+        'location.coordinates.lng': { $exists: true, $ne: null },
+      })
+        .select('name slug type tagline description location images stats isVerified transport')
+        .lean();
+
+      const locations = businesses.map((b) => ({
+        id: b._id.toString(),
+        name: b.name,
+        type: b.type,
+        tagline: b.tagline,
+        description: b.description,
+        lat: b.location.coordinates?.lat,
+        lng: b.location.coordinates?.lng,
+        address: b.location.address,
+        image: b.images && b.images.length > 0 ? b.images[0] : null,
+        rating: b.stats?.rating || 0,
+        reviewCount: b.stats?.reviewCount || 0,
+        isVerified: b.isVerified,
+        transport: b.transport || null,
+      }));
+
+      res.json({ locations });
+    } catch (error) {
+      console.error('Error fetching business map locations:', error);
+      res.status(500).json({ error: 'Failed to fetch business locations' });
+    }
+  }
+);
+
+// ======================
+// DISCOVER BUSINESSES FROM OSM
+// ======================
+router.get(
+  '/osm/discover',
+  authenticate,
+  requireAdmin,
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      // Iligan City bounds
+      const bounds = {
+        south: 8.10,
+        west: 124.10,
+        north: 8.30,
+        east: 124.35,
+      };
+
+      // Query for business-related nodes in Iligan
+      const query = `
+        [out:json][timeout:30];
+        (
+          node["amenity"~"restaurant|cafe|fast_food|bar|pub|food_court"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+          node["tourism"~"hotel|motel|hostel|guest_house|apartment|resort"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+          node["shop"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+          way["amenity"~"restaurant|cafe|fast_food"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+          way["tourism"~"hotel|motel|hostel|guest_house|resort"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+          way["shop"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+        );
+        out center body;
+      `;
+
+      const endpoints = [
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+      ];
+
+      let osmData: any = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({ data: query }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            osmData = await response.json();
+            break;
+          }
+        } catch (err) {
+          console.warn(`OSM endpoint ${endpoint} failed`);
+        }
+      }
+
+      if (!osmData?.elements) {
+        res.status(503).json({ error: 'Unable to fetch OSM data' });
+        return;
+      }
+
+      // Get existing business names to filter out duplicates
+      const existingBusinesses = await Business.find({}, { name: 1 }).lean();
+      const existingNames = new Set(
+        existingBusinesses.map((b) => b.name.toLowerCase().trim())
+      );
+
+      // Map OSM elements to business-like objects
+      const osmPlaces = osmData.elements
+        .filter((el: any) => el.tags?.name)
+        .map((el: any) => {
+          const lat = el.lat ?? el.center?.lat;
+          const lng = el.lon ?? el.center?.lon;
+
+          // Determine business type based on tags
+          let type = 'shop';
+          let displayType = 'Shop';
+          
+          if (el.tags?.amenity) {
+            const amenity = el.tags.amenity;
+            if (['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'food_court'].includes(amenity)) {
+              type = 'restaurant';
+              displayType = amenity === 'cafe' ? 'Cafe' : amenity === 'fast_food' ? 'Fast Food' : 'Restaurant';
+            }
+          }
+          
+          if (el.tags?.tourism) {
+            const tourism = el.tags.tourism;
+            if (['hotel', 'motel', 'hostel', 'guest_house', 'apartment', 'resort'].includes(tourism)) {
+              type = 'accommodation';
+              displayType = tourism === 'hotel' ? 'Hotel' : tourism === 'resort' ? 'Resort' : 'Accommodation';
+            }
+          }
+          
+          if (el.tags?.shop) {
+            type = 'shop';
+            displayType = 'Shop';
+          }
+
+          return {
+            osmId: `osm-${el.type}-${el.id}`,
+            name: el.tags.name,
+            type,
+            displayType,
+            lat,
+            lng,
+            description: el.tags.description || el.tags['description:en'] || '',
+            address: el.tags['addr:full'] || el.tags['addr:street'] || '',
+            phone: el.tags.phone || el.tags['contact:phone'] || '',
+            website: el.tags.website || el.tags['contact:website'] || '',
+            tags: el.tags,
+            alreadyExists: existingNames.has(el.tags.name.toLowerCase().trim()),
+          };
+        })
+        .filter((p: any) => p.lat && p.lng);
+
+      res.json({
+        places: osmPlaces,
+        total: osmPlaces.length,
+        newPlaces: osmPlaces.filter((p: any) => !p.alreadyExists).length,
+      });
+    } catch (error) {
+      console.error('Error discovering OSM businesses:', error);
+      res.status(500).json({ error: 'Failed to discover businesses from OSM' });
+    }
+  }
+);
+
+// ======================
+// IMPORT OSM PLACE AS BUSINESS
+// ======================
+router.post(
+  '/osm/import',
+  authenticate,
+  requireAdmin,
+  asHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { osmId, name, type, lat, lng, description, address, phone, website } = req.body;
+
+      if (!osmId || !name || !type || !lat || !lng) {
+        res.status(400).json({ error: 'Missing required fields' });
+        return;
+      }
+
+      // Check if already exists
+      const existing = await Business.findOne({
+        $or: [
+          { 'location.osmId': osmId },
+          { name: { $regex: new RegExp(`^${name}$`, 'i') } },
+        ],
+      });
+
+      if (existing) {
+        res.status(409).json({ error: 'Business already exists' });
+        return;
+      }
+
+      const slug = generateSlug(name);
+      
+      const business = new Business({
+        ownerId: req.user!._id,
+        name,
+        slug,
+        type,
+        description: description || `${name} - ${type} in Iligan City`,
+        location: {
+          address: address || 'Iligan City, Lanao del Norte',
+          coordinates: { lat, lng },
+          osmId,
+        },
+        contact: {
+          phone: phone || '',
+          website: website || '',
+        },
+        images: [],
+        isVerified: false,
+        isActive: true,
+        status: 'active',
+        stats: { rating: 0, reviewCount: 0 },
+      });
+
+      await business.save();
+
+      res.status(201).json({ business });
+    } catch (error) {
+      console.error('Error importing OSM business:', error);
+      res.status(500).json({ error: 'Failed to import business' });
+    }
+  })
+);
+
+// ======================
 // GET SINGLE BUSINESS
 // ======================
 router.get(

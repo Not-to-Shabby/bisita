@@ -39,6 +39,16 @@ export interface Attraction {
       lat: number;
       lng: number;
     };
+    manualCoordinates?: {
+      lat: number;
+      lng: number;
+    };
+    osmCoordinates?: {
+      lat: number;
+      lng: number;
+      fetchedAt?: string;
+      sourceId?: string;
+    };
     distanceFromCity?: string;
   };
   visitorInfo: {
@@ -49,14 +59,19 @@ export interface Attraction {
     difficulty?: string;
     duration?: string;
   };
-  transport: {
-    mode: string;
-    description: string;
-    fare?: string;
-    terminal?: string;
-    travelTime?: string;
-    tips?: string;
-  }[];
+  transport?: {
+    vehicle?: string;
+    route?: string;
+    duration?: string;
+    fares?: {
+      regular?: string;
+      discounted?: string;
+      habal?: string;
+    };
+    segments?: ('Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus')[];
+    note?: string;
+  };
+  useOsmCoordinates?: boolean;
   stats: {
     averageRating: number;
     reviewCount: number;
@@ -77,23 +92,82 @@ export interface MapLocation {
   description: string;
   address: string;
   distanceFromCity?: string;
-  transport: Attraction['transport'];
+  useOsmCoordinates?: boolean;
+  coordinateSource?: 'manual' | 'osm' | 'fallback';
+  manualCoordinates?: { lat: number; lng: number } | null;
+  osmCoordinates?: { lat: number; lng: number; fetchedAt?: string; sourceId?: string } | null;
+  stats?: {
+    rating?: number;
+    reviewCount?: number;
+  };
+  transport: {
+    mode: string;
+    description: string;
+    fare?: string;
+    terminal?: string;
+    travelTime?: string;
+    tips?: string;
+    segments?: ('Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus')[];
+  }[];
+}
+
+// Business map location type
+export interface BusinessMapLocation {
+  id: string;
+  name: string;
+  type: string;
+  tagline?: string;
+  description: string;
+  lat: number;
+  lng: number;
+  address: string;
+  image?: string;
+  rating: number;
+  reviewCount: number;
+  isVerified: boolean;
+  transport?: {
+    vehicle?: string;
+    route?: string;
+    duration?: string;
+    fares?: {
+      regular?: string;
+      discounted?: string;
+      habal?: string;
+    };
+    segments?: ('Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus')[];
+    note?: string;
+  };
 }
 
 // Business types
 export interface Business {
   _id: string;
   legacyId?: string;
+  ownerId: string;
   name: string;
-  category: string;
+  slug?: string;
+  type: 'accommodation' | 'restaurant' | 'activity' | 'guide_service' | 'shop' | 'transport';
+  tagline?: string;
   description: string;
-  coverImage: string;
-  gallery: string[];
-  contact: {
+  images: string[];
+  contact?: {
     phone?: string;
     email?: string;
     website?: string;
     facebook?: string;
+    messenger?: string;
+  };
+  transport?: {
+    vehicle?: string;
+    route?: string;
+    duration?: string;
+    fares?: {
+      regular?: string;
+      discounted?: string;
+      habal?: string;
+    };
+    segments?: ('Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus')[];
+    note?: string;
   };
   location: {
     address: string;
@@ -103,16 +177,15 @@ export interface Business {
     };
   };
   nearAttractionIds: string[];
-  hours?: string;
-  priceRange?: string;
   stats: {
-    averageRating: number;
+    rating: number;
     reviewCount: number;
   };
   isVerified: boolean;
   isActive: boolean;
-  ownerId: string;
+  status: 'active' | 'pending' | 'suspended';
   createdAt: string;
+  updatedAt?: string;
 }
 
 // Review types
@@ -275,7 +348,7 @@ export const attractionsApi = {
 
   update: (id: string, data: Partial<Attraction>) => {
     return apiClient<{ attraction: Attraction }>(`/attractions/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },
@@ -285,21 +358,94 @@ export const attractionsApi = {
       method: 'DELETE',
     });
   },
+
+  // Bulk sync all attractions to use OSM coordinates
+  syncOsmCoordinates: () => {
+    return apiClient<{ message: string; synced: number; failed: number; fetched: number; reused: number }>(
+      '/attractions/sync-osm-coordinates',
+      {
+        method: 'POST',
+      }
+    );
+  },
+
+  // Sync a single attraction via OSM
+  syncOsmById: (id: string, activate = false) => {
+    return apiClient<{ attraction: Attraction }>(`/attractions/${id}/sync-osm`, {
+      method: 'POST',
+      body: JSON.stringify({ activate }),
+    });
+  },
+
+  // Bulk set all attractions to use database coordinates
+  useDbCoordinates: () => {
+    return apiClient<{ message: string; updated: number }>(
+      '/attractions/use-db-coordinates',
+      {
+        method: 'POST',
+      }
+    );
+  },
+
+  // Discover places from OpenStreetMap
+  discoverOsmPlaces: () => {
+    return apiClient<{
+      places: OsmPlace[];
+      total: number;
+      newPlaces: number;
+    }>('/attractions/osm/discover');
+  },
+
+  // Import a single place from OSM
+  importOsmPlace: (place: {
+    osmId: string;
+    name: string;
+    category: string;
+    lat: number;
+    lng: number;
+    description?: string;
+    address?: string;
+  }) => {
+    return apiClient<{ attraction: Attraction }>('/attractions/osm/import', {
+      method: 'POST',
+      body: JSON.stringify(place),
+    });
+  },
 };
+
+// OSM Place type for discovery
+export interface OsmPlace {
+  osmId: string;
+  name: string;
+  category: string;
+  displayCategory?: string;
+  lat: number;
+  lng: number;
+  description?: string;
+  address?: string;
+  tags?: Record<string, string>;
+  alreadyExists: boolean;
+}
 
 // ======================
 // BUSINESSES API
 // ======================
 
 export const businessesApi = {
-  getAll: (params?: { category?: string; verified?: boolean; nearAttraction?: string }) => {
+  getAll: (params?: { type?: string; verified?: boolean; nearAttraction?: string; status?: string }) => {
     const searchParams = new URLSearchParams();
-    if (params?.category) searchParams.set('category', params.category);
+    if (params?.type) searchParams.set('type', params.type);
     if (params?.verified) searchParams.set('verified', 'true');
     if (params?.nearAttraction) searchParams.set('nearAttraction', params.nearAttraction);
+    if (params?.status) searchParams.set('status', params.status);
     
     const query = searchParams.toString();
     return apiClient<{ businesses: Business[] }>(`/businesses${query ? `?${query}` : ''}`);
+  },
+
+  // Admin: get all businesses including pending/suspended
+  getAllAdmin: () => {
+    return apiClient<{ businesses: Business[] }>('/businesses/admin/all');
   },
 
   getById: (id: string) => {
@@ -307,7 +453,7 @@ export const businessesApi = {
   },
 
   getMine: () => {
-    return apiClient<{ businesses: Business[] }>('/businesses/mine');
+    return apiClient<{ businesses: Business[] }>('/businesses/me/list');
   },
 
   create: (data: Partial<Business>) => {
@@ -319,7 +465,7 @@ export const businessesApi = {
 
   update: (id: string, data: Partial<Business>) => {
     return apiClient<{ business: Business }>(`/businesses/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },
@@ -330,13 +476,68 @@ export const businessesApi = {
     });
   },
 
-  verify: (id: string, isVerified: boolean) => {
+  verify: (id: string, verified: boolean) => {
     return apiClient<{ business: Business }>(`/businesses/${id}/verify`, {
       method: 'PATCH',
-      body: JSON.stringify({ isVerified }),
+      body: JSON.stringify({ verified }),
+    });
+  },
+
+  // Admin: update status
+  updateStatus: (id: string, status: 'active' | 'pending' | 'suspended') => {
+    return apiClient<{ business: Business }>(`/businesses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  // Get businesses for map display
+  getMapLocations: () => {
+    return apiClient<{ locations: BusinessMapLocation[] }>('/businesses/map/locations');
+  },
+
+  // Discover businesses from OpenStreetMap
+  discoverOsmPlaces: () => {
+    return apiClient<{
+      places: OsmBusinessPlace[];
+      total: number;
+      newPlaces: number;
+    }>('/businesses/osm/discover');
+  },
+
+  // Import a single business from OSM
+  importOsmPlace: (place: {
+    osmId: string;
+    name: string;
+    type: string;
+    lat: number;
+    lng: number;
+    description?: string;
+    address?: string;
+    phone?: string;
+    website?: string;
+  }) => {
+    return apiClient<{ business: Business }>('/businesses/osm/import', {
+      method: 'POST',
+      body: JSON.stringify(place),
     });
   },
 };
+
+// OSM Business Place type for discovery
+export interface OsmBusinessPlace {
+  osmId: string;
+  name: string;
+  type: string;
+  displayType?: string;
+  lat: number;
+  lng: number;
+  description?: string;
+  address?: string;
+  phone?: string;
+  website?: string;
+  alreadyExists: boolean;
+}
 
 // ======================
 // REVIEWS API

@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import BottomNav from '../components/BottomNav';
-import { Search, SlidersHorizontal, Plus, Minus, Navigation, Bus, ArrowLeft, X, Store, ChevronRight, Star, Layers, Clock, Banknote, MapPin, Footprints, Bike, AlertTriangle, Loader2 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMap, useMapEvents } from 'react-leaflet';
+import { Search, SlidersHorizontal, Plus, Minus, Navigation, Bus, ArrowLeft, X, Star, Layers, Clock, Banknote, MapPin, Footprints, Bike, AlertTriangle, Loader2, Globe, Store, BadgeCheck } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import { getMedia } from '../data/mediaLibrary';
-import { attractionsApi, MapLocation } from '../services/api';
+import { attractionsApi, businessesApi, MapLocation, BusinessMapLocation } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 // Fix for default marker icon in React Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -24,12 +25,28 @@ const ILIGAN_BOUNDS: L.LatLngBoundsExpression = [
     [8.30, 124.30]
 ];
 
+const LIVE_OSM_STORAGE_KEY = 'bisita:map-live-osm';
+
+type LocationType = 'attraction' | 'business';
+
 interface LocationData {
     id: string;
     name: string;
     position: [number, number];
     description: string;
     image: string;
+    locationType: LocationType;
+    category?: string; // For attractions
+    businessType?: string; // For businesses
+    tagline?: string;
+    rating?: number;
+    reviewCount?: number;
+    isVerified?: boolean;
+    useOsmCoordinates?: boolean;
+    coordinateSource?: 'manual' | 'osm' | 'fallback';
+    manualCoordinates?: { lat: number; lng: number } | null;
+    osmCoordinates?: { lat: number; lng: number; fetchedAt?: string; sourceId?: string } | null;
+    isLiveOsm?: boolean;
     transport?: {
         vehicle: string;
         route: string;
@@ -109,6 +126,7 @@ const transportGuides: LocationData[] = [
         position: [8.2293, 124.2395],
         description: 'The heart of Iligan City.',
         image: getMedia('cityProper'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Walking / Tricycle',
             route: 'N/A',
@@ -125,6 +143,7 @@ const transportGuides: LocationData[] = [
         position: [8.1836, 124.1919],
         description: 'Standing 320 feet tall, the "Twin Falls" is the primary source of hydroelectric power for Mindanao. It is Iligan\'s most famous landmark, known for its grandeur and historical significance in powering the region\'s industrialization.',
         image: getMedia('mariaCristinaFalls'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney',
             route: 'Code 1C (Buru-un)',
@@ -141,6 +160,7 @@ const transportGuides: LocationData[] = [
         position: [8.1594, 124.1739],
         description: 'Hidden deep in a ravine with blue-green waters.',
         image: getMedia('tinagoFalls'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney + Habal-habal',
             route: 'Code 1C (Buru-un)',
@@ -158,6 +178,7 @@ const transportGuides: LocationData[] = [
         position: [8.1965, 124.1802],
         description: 'Famous roadside cold springs.',
         image: getMedia('timogaSprings'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney',
             route: 'Code 1C (Buru-un)',
@@ -174,6 +195,7 @@ const transportGuides: LocationData[] = [
         position: [8.2416, 124.2394],
         description: 'Seaside park with the "Iligan City" sign.',
         image: getMedia('paseoDeSantiago'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney',
             route: 'Code 1A (Santiago)',
@@ -190,6 +212,7 @@ const transportGuides: LocationData[] = [
         position: [8.1849, 124.1651],
         description: 'Accessible waterfall with picnic spots.',
         image: getMedia('mimbalotFalls'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney + Walk',
             route: 'Code 1C (Buru-un)',
@@ -206,6 +229,7 @@ const transportGuides: LocationData[] = [
         position: [8.1981, 124.1811],
         description: 'Ancestral house of two Philippine Presidents.',
         image: getMedia('macaraegHouse'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney',
             route: 'Code 1C (Buru-un)',
@@ -222,6 +246,7 @@ const transportGuides: LocationData[] = [
         position: [8.2293, 124.2395],
         description: 'Famous pasalubong store.',
         image: getMedia('chedingsPeanuts'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Tricycle / Jeepney',
             route: 'City Proper',
@@ -238,6 +263,7 @@ const transportGuides: LocationData[] = [
         position: [8.2187, 124.2406],
         description: 'Located at Robinsons Place Iligan.',
         image: getMedia('goHotels'),
+        locationType: 'attraction',
         transport: {
             vehicle: 'Jeepney',
             route: 'Code 1C / Tubod',
@@ -265,12 +291,6 @@ const guideLookup = transportGuides.reduce<Record<string, LocationData>>((acc, g
     return acc;
 }, {});
 
-const guidePositions = transportGuides.reduce<Record<string, [number, number]>>((acc, guide) => {
-    const slug = normalizeName(guide.name);
-    acc[slug] = guide.position;
-    return acc;
-}, {});
-
 const guideAliases: Record<string, string> = {
     'paseo-de-santiago-park': 'paseo-de-santiago',
     'paseo-de-santiago-seaside-park': 'paseo-de-santiago',
@@ -279,15 +299,6 @@ const guideAliases: Record<string, string> = {
     'paseo-santiago-iligan': 'paseo-de-santiago',
     'tinago-falls-iligan': 'tinago-falls',
     'maria-cristina-falls-power-plant': 'maria-cristina-falls',
-};
-
-const coordinateOverrides: Record<string, [number, number]> = {
-    'paseo-de-santiago-park': guidePositions['paseo-de-santiago'],
-    'paseo-de-santiago-seaside-park': guidePositions['paseo-de-santiago'],
-    'paseo-de-santiago-iligan': guidePositions['paseo-de-santiago'],
-    'paseo-de-santiago': guidePositions['paseo-de-santiago'],
-    'paseo-santiago': guidePositions['paseo-de-santiago'],
-    'paseo-santiago-iligan': guidePositions['paseo-de-santiago'],
 };
 
 const findGuideForSpot = (rawSlug: string, name: string): LocationData | undefined => {
@@ -307,6 +318,12 @@ const findGuideForSpot = (rawSlug: string, name: string): LocationData | undefin
     return fuzzyMatch;
 };
 
+const hasValidPosition = (position?: [number, number]) => {
+    if (!position) return false;
+    const [lat, lng] = position;
+    return typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat) && !Number.isNaN(lng);
+};
+
 const mergeWithTransportGuides = (spots: LocationData[]): LocationData[] => {
     return spots.map((spot) => {
         const rawSlug = normalizeName(spot.name);
@@ -318,44 +335,79 @@ const mergeWithTransportGuides = (spots: LocationData[]): LocationData[] => {
 
         return {
             ...spot,
-            id: guide.id,
             name: guide.name,
-            description: guide.description || spot.description,
-            image: guide.image || spot.image,
-            position: coordinateOverrides[rawSlug] || coordinateOverrides[normalizeName(guide.name)] || spot.position,
-            transport: guide.transport,
+            description: spot.description || guide.description,
+            image: spot.image || guide.image,
+            position: hasValidPosition(spot.position) ? spot.position : guide.position,
+            transport: spot.transport || guide.transport,
         };
     });
 };
 
 const OVERPASS_ENDPOINTS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter'
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter'
 ];
+
+// Iligan City bounds for coordinate validation
+const ILIGAN_LAT_MIN = 8.10;
+const ILIGAN_LAT_MAX = 8.30;
+const ILIGAN_LNG_MIN = 124.10;
+const ILIGAN_LNG_MAX = 124.35;
+
+const isValidIliganCoordinate = (lat: number, lng: number): boolean => {
+    return lat >= ILIGAN_LAT_MIN && lat <= ILIGAN_LAT_MAX && 
+           lng >= ILIGAN_LNG_MIN && lng <= ILIGAN_LNG_MAX;
+};
 
 // Helper to fetch dynamic places from OpenStreetMap (Overpass API)
 const fetchDynamicPlaces = async (): Promise<LocationData[]> => {
+    // Use a smaller, more focused query to reduce load
     const query = `
-        [out:json][timeout:60];
+        [out:json][timeout:25];
         (
-          node["tourism"~"attraction|viewpoint|museum|hotel|picnic_site"](8.10,124.10,8.30,124.30);
-                    node["amenity"="restaurant"](8.10,124.10,8.30,124.30);
+          node["tourism"~"attraction|viewpoint|museum"](8.15,124.15,8.28,124.28);
+          node["amenity"="restaurant"](8.20,124.22,8.25,124.26);
         );
         out body;
     `;
 
     for (const endpoint of OVERPASS_ENDPOINTS) {
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                     'Accept': 'application/json'
                 },
-                body: new URLSearchParams({ data: query })
+                body: new URLSearchParams({ data: query }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
+
+            // Check if response is OK
+            if (!response.ok) {
+                console.warn(`Overpass endpoint ${endpoint} returned status ${response.status}`);
+                continue;
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                console.warn(`Overpass endpoint ${endpoint} returned non-JSON content-type: ${contentType}`);
+                continue;
+            }
+
             const rawPayload = await response.text();
+
+            // Check if response starts with JSON
+            if (!rawPayload.trim().startsWith('{')) {
+                console.warn(`Overpass endpoint ${endpoint} returned non-JSON response`);
+                continue;
+            }
 
             try {
                 const data = JSON.parse(rawPayload);
@@ -365,27 +417,40 @@ const fetchDynamicPlaces = async (): Promise<LocationData[]> => {
                 }
 
                 const mapped: LocationData[] = data.elements
+                    .filter((element: any) => {
+                        // Validate coordinates are within Iligan bounds
+                        return isValidIliganCoordinate(element.lat, element.lon);
+                    })
                     .map((element: any) => ({
                         id: `osm-${element.id}`,
                         name: element.tags?.name || 'Unnamed Spot',
-                        position: [element.lat, element.lon],
-                        description: element.tags?.description || `A ${element.tags?.tourism?.replace('_', ' ')} discovered on the map.`,
+                        position: [element.lat, element.lon] as [number, number],
+                        description: element.tags?.description || `A ${(element.tags?.tourism || element.tags?.amenity || 'place')?.replace('_', ' ')} discovered on the map.`,
                         image: 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=150&q=80',
+                        isLiveOsm: true,
+                        coordinateSource: 'osm',
                     }))
-                    .filter((loc) => loc.name !== 'Unnamed Spot');
+                    .filter((loc: LocationData) => loc.name !== 'Unnamed Spot');
 
                 if (mapped.length > 0) {
+                    console.log(`✅ Loaded ${mapped.length} locations from OSM (${endpoint})`);
                     return mapped;
                 }
             } catch (parseError) {
-                console.error(`Failed to parse Overpass response from ${endpoint}:`, rawPayload.substring(0, 120));
+                console.warn(`Failed to parse JSON from ${endpoint}`);
             }
         } catch (networkError) {
-            console.error(`Overpass request failed (${endpoint}):`, networkError);
+            if (networkError instanceof Error && networkError.name === 'AbortError') {
+                console.warn(`Overpass request timed out (${endpoint})`);
+            } else {
+                console.warn(`Overpass request failed (${endpoint})`);
+            }
         }
     }
 
-    throw new Error('All Overpass endpoints failed or returned invalid data.');
+    // Return empty array instead of throwing - DB data is primary anyway
+    console.log('OSM data unavailable, using database locations only');
+    return [];
 };
 
 // Inner component to access Leaflet map instance
@@ -402,12 +467,12 @@ const MapController: React.FC = () => {
     return (
         <>
             <TileLayer
-                attribution='&copy; Google Maps'
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url={isSatellite 
-                    ? "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" 
-                    : "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                    ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    : "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 }
-                maxZoom={20}
+                maxZoom={19}
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-[400] flex flex-col gap-3">
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col">
@@ -463,7 +528,7 @@ const MapEventHandler: React.FC<MapEventHandlerProps> = ({ locations, onNearestL
     });
 
     const findNearestLocation = (lat: number, lng: number): string => {
-        let nearestId = 'city-proper';
+        let nearestSlug = 'city-proper';
         let minDistance = Infinity;
 
         locations.forEach((loc) => {
@@ -472,11 +537,13 @@ const MapEventHandler: React.FC<MapEventHandlerProps> = ({ locations, onNearestL
             );
             if (distance < minDistance) {
                 minDistance = distance;
-                nearestId = loc.id;
+                const rawSlug = normalizeName(loc.name);
+                const guide = findGuideForSpot(rawSlug, loc.name);
+                nearestSlug = guide ? guide.id : rawSlug;
             }
         });
 
-        return nearestId;
+        return nearestSlug;
     };
 
     return null;
@@ -606,10 +673,48 @@ interface LocationDetailSheetProps {
     location: LocationData;
     onClose: () => void;
     onNavigate: () => void;
+    isAdmin?: boolean;
 }
 
-const LocationDetailSheet: React.FC<LocationDetailSheetProps> = ({ location, onClose, onNavigate }) => {
-    const [activeTab, setActiveTab] = useState<'transport' | 'details' | 'reviews'>('transport');
+const LocationDetailSheet: React.FC<LocationDetailSheetProps> = ({ location, onClose, onNavigate, isAdmin = false }) => {
+    const isBusiness = location.locationType === 'business';
+    const hasTransport = Boolean(location.transport && (location.transport.vehicle || location.transport.route || location.transport.segments?.length));
+    const [activeTab, setActiveTab] = useState<'transport' | 'details' | 'reviews'>(
+        isBusiness && !hasTransport ? 'details' : 'transport'
+    );
+    
+    // Only show coordinate source badge for admins
+    const getSourceBadge = () => {
+        if (!isAdmin) return null;
+        
+        if (location.isLiveOsm) {
+            return { label: 'Live OSM', className: 'bg-blue-50 text-blue-700' };
+        }
+        if (location.coordinateSource === 'osm') {
+            return { label: 'OpenStreetMap', className: 'bg-blue-50 text-blue-700' };
+        }
+        if (location.coordinateSource === 'manual') {
+            return { label: 'Manual Coordinates', className: 'bg-slate-100 text-slate-700' };
+        }
+        if (location.coordinateSource === 'fallback') {
+            return { label: 'Fallback', className: 'bg-amber-50 text-amber-700' };
+        }
+        return null;
+    };
+
+    const getBusinessTypeLabel = (type: string): string => {
+        const typeMap: Record<string, string> = {
+            accommodation: 'Accommodation',
+            restaurant: 'Restaurant',
+            activity: 'Activity',
+            guide_service: 'Guide Service',
+            shop: 'Shop',
+            transport: 'Transport',
+        };
+        return typeMap[type] || type;
+    };
+
+    const sourceBadge = getSourceBadge();
 
     return (
         <div className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-[500] animate-sheet-rise max-h-[85vh] overflow-y-auto pb-24 md:pb-6 md:w-96 md:left-auto md:right-4 md:bottom-4 md:rounded-2xl">
@@ -622,9 +727,38 @@ const LocationDetailSheet: React.FC<LocationDetailSheetProps> = ({ location, onC
             <div className="px-6 pt-4 pb-2 flex justify-between items-start">
                 <div>
                     <h2 className="text-xl font-bold text-slate-900">{location.name}</h2>
-                    <div className="flex items-center gap-1 text-slate-500 text-sm mt-1">
-                        <MapPin size={14} />
-                        <span>{location.description.substring(0, 30)}...</span>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {location.isVerified && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                                <BadgeCheck size={12} />
+                                Verified
+                            </span>
+                        )}
+                        {sourceBadge && (
+                            <span className={`inline-flex text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${sourceBadge.className}`}>
+                                {sourceBadge.label}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1 text-slate-500 text-sm mt-1.5">
+                        {isBusiness ? (
+                            <>
+                                <Store size={14} />
+                                <span>{getBusinessTypeLabel(location.businessType || '')}</span>
+                                {location.rating !== undefined && location.rating > 0 && (
+                                    <>
+                                        <span className="mx-1">•</span>
+                                        <Star size={14} className="text-yellow-500" />
+                                        <span>{location.rating.toFixed(1)}</span>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <MapPin size={14} />
+                                <span>{location.description.substring(0, 30)}...</span>
+                            </>
+                        )}
                     </div>
                 </div>
                 <button 
@@ -637,13 +771,15 @@ const LocationDetailSheet: React.FC<LocationDetailSheetProps> = ({ location, onC
 
             {/* Tabs */}
             <div className="flex border-b border-gray-100 px-6 mt-2">
-                <button 
-                    onClick={() => setActiveTab('transport')}
-                    className={`pb-3 px-2 text-sm font-bold transition-colors relative ${activeTab === 'transport' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    Transport
-                    {activeTab === 'transport' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 rounded-t-full" />}
-                </button>
+                {(!isBusiness || hasTransport) && (
+                    <button 
+                        onClick={() => setActiveTab('transport')}
+                        className={`pb-3 px-2 text-sm font-bold transition-colors relative ${activeTab === 'transport' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                        Transport
+                        {activeTab === 'transport' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 rounded-t-full" />}
+                    </button>
+                )}
                 <button 
                     onClick={() => setActiveTab('details')}
                     className={`pb-3 px-2 text-sm font-bold transition-colors relative ${activeTab === 'details' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'}`}
@@ -818,6 +954,14 @@ const LocationDetailSheet: React.FC<LocationDetailSheetProps> = ({ location, onC
 
 const MapPage: React.FC = () => {
   const navigate = useNavigate();
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const [includeLiveOsm, setIncludeLiveOsm] = useState<boolean>(() => {
+        if (typeof window === 'undefined') {
+            return false;
+        }
+        return localStorage.getItem(LIVE_OSM_STORAGE_KEY) === 'true';
+    });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [nearestLocationId, setNearestLocationId] = useState('city-proper');
   const [isAdBannerDismissed, setIsAdBannerDismissed] = useState(false);
@@ -828,74 +972,205 @@ const MapPage: React.FC = () => {
   const [isOsmErrorDismissed, setIsOsmErrorDismissed] = useState(false);
 
   useEffect(() => {
+      if (!isAdmin) {
+          if (includeLiveOsm) {
+              setIncludeLiveOsm(false);
+          }
+          if (typeof window !== 'undefined') {
+              localStorage.removeItem(LIVE_OSM_STORAGE_KEY);
+          }
+          return;
+      }
+
+      if (typeof window === 'undefined') {
+          return;
+      }
+
+      localStorage.setItem(LIVE_OSM_STORAGE_KEY, includeLiveOsm ? 'true' : 'false');
+  }, [includeLiveOsm, isAdmin]);
+
+  useEffect(() => {
+      if (!isAdmin) {
+          if (includeLiveOsm) {
+              setIncludeLiveOsm(false);
+          }
+          return;
+      }
+      if (typeof window === 'undefined') {
+          return;
+      }
+      localStorage.setItem(LIVE_OSM_STORAGE_KEY, includeLiveOsm ? 'true' : 'false');
+  }, [includeLiveOsm, isAdmin]);
+
+  useEffect(() => {
       let isMounted = true;
+      setIsLoading(true);
 
       const loadLocations = async () => {
-          // First, try to fetch from our backend API
+          let dbLocations: LocationData[] = [];
+          let businessLocations: LocationData[] = [];
+          let dynamicLocations: LocationData[] = [];
+          let hasDbData = false;
+          let dynamicError: string | null = null;
+          const shouldFetchDynamic = isAdmin && includeLiveOsm;
+
+          // Fetch attractions
           try {
               const apiResponse = await attractionsApi.getMapLocations();
-              
-              if (apiResponse.data?.locations && apiResponse.data.locations.length > 0) {
-                  // Transform API response to LocationData format
-                  const apiLocations: LocationData[] = apiResponse.data.locations.map((loc: MapLocation) => ({
-                      id: loc.id,
-                      name: loc.name,
-                      position: [loc.lat, loc.lng] as [number, number],
-                      description: loc.description || `A ${loc.category.toLowerCase()} in Iligan.`,
-                      image: getMedia(loc.id as any) || 'https://picsum.photos/400/300?travel',
-                      transport: loc.transport && loc.transport.length > 0 ? {
-                          vehicle: loc.transport[0].mode,
-                          route: loc.transport[0].description,
-                          note: loc.transport[0].tips || '',
-                          fareRegular: loc.transport[0].fare,
-                          duration: loc.transport[0].travelTime,
-                          segments: loc.transport.map(t => t.mode as 'Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus'),
-                      } : undefined,
-                  }));
 
-                  // Merge with static transport guides for enhanced info
-                  const merged = mergeWithTransportGuides(apiLocations);
-                  if (isMounted) {
-                      setLocations(merged.length > 0 ? merged : apiLocations);
-                      setOsmError(null);
-                  }
-                  return;
+              if (apiResponse.data?.locations && apiResponse.data.locations.length > 0) {
+                  hasDbData = true;
+                  dbLocations = apiResponse.data.locations.map((loc: MapLocation & { useOsmCoordinates?: boolean }) => {
+                      const firstTransport = loc.transport && loc.transport.length > 0 ? loc.transport[0] : null;
+
+                      return {
+                          id: loc.id,
+                          name: loc.name,
+                          position: [loc.lat, loc.lng] as [number, number],
+                          description: loc.description || `A ${loc.category.toLowerCase()} in Iligan.`,
+                          image: getMedia(loc.id as any) || 'https://picsum.photos/400/300?travel',
+                          locationType: 'attraction' as LocationType,
+                          category: loc.category,
+                          useOsmCoordinates: loc.useOsmCoordinates ?? false,
+                          coordinateSource: loc.coordinateSource,
+                          manualCoordinates: loc.manualCoordinates || null,
+                          osmCoordinates: loc.osmCoordinates || null,
+                          transport: firstTransport
+                            ? {
+                                vehicle: firstTransport.mode,
+                                route: firstTransport.description,
+                                note: firstTransport.tips || '',
+                                fareRegular: firstTransport.fare,
+                                duration: firstTransport.travelTime,
+                                segments:
+                                  firstTransport.segments || [firstTransport.mode as 'Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus'],
+                              }
+                            : undefined,
+                      };
+                  });
               }
           } catch (apiError) {
-              console.log('Backend API unavailable, trying OSM...');
+              console.log('Backend API unavailable for attractions...');
           }
 
-          // Fallback to OpenStreetMap
+          // Fetch businesses
           try {
-              const dynamicSpots = await fetchDynamicPlaces();
-              if (!isMounted) return;
-              const merged = mergeWithTransportGuides(dynamicSpots);
-              if (merged.length === 0) {
-                  setLocations(mergeWithTransportGuides(transportGuides));
-                  setOsmError('Live map data is unavailable at the moment. Showing curated guides instead.');
-              } else {
-                  setLocations(merged);
-                  setOsmError(null);
+              const businessResponse = await businessesApi.getMapLocations();
+
+              if (businessResponse.data?.locations && businessResponse.data.locations.length > 0) {
+                  hasDbData = true;
+                  businessLocations = businessResponse.data.locations.map((loc: BusinessMapLocation) => ({
+                      id: `business-${loc.id}`,
+                      name: loc.name,
+                      position: [loc.lat, loc.lng] as [number, number],
+                      description: loc.tagline || loc.description || `${loc.type} in Iligan City`,
+                      image: loc.image || 'https://picsum.photos/400/300?business',
+                      locationType: 'business' as LocationType,
+                      businessType: loc.type,
+                      tagline: loc.tagline,
+                      rating: loc.rating,
+                      reviewCount: loc.reviewCount,
+                      isVerified: loc.isVerified,
+                      transport: loc.transport ? {
+                          vehicle: loc.transport.vehicle || '',
+                          route: loc.transport.route || '',
+                          note: loc.transport.note || '',
+                          duration: loc.transport.duration,
+                          fareRegular: loc.transport.fares?.regular,
+                          fareDiscounted: loc.transport.fares?.discounted,
+                          fareHabal: loc.transport.fares?.habal,
+                          segments: loc.transport.segments,
+                      } : undefined,
+                  }));
               }
-          } catch (error) {
-              console.error('Failed to load dynamic locations:', error);
-              if (isMounted) {
-                  setLocations(mergeWithTransportGuides(transportGuides));
-                  setOsmError('Live map data is unavailable at the moment. Showing curated guides instead.');
+          } catch (apiError) {
+              console.log('Backend API unavailable for businesses...');
+          }
+
+          if (shouldFetchDynamic) {
+              try {
+                  const dynamicSpots = await fetchDynamicPlaces();
+                  if (isMounted) {
+                      dynamicLocations = dynamicSpots;
+                  }
+              } catch (error) {
+                  dynamicError = 'Live OpenStreetMap data is unavailable right now.';
               }
-          } finally {
-              if (isMounted) {
-                  setIsLoading(false);
-              }
+          }
+
+          if (!isMounted) {
+              return;
+          }
+
+          const namesMatch = (name1: string, name2: string): boolean => {
+              const n1 = normalizeName(name1);
+              const n2 = normalizeName(name2);
+              if (n1 === n2) return true;
+              const n1NoDe = n1.replace(/-de-/g, '-');
+              const n2NoDe = n2.replace(/-de-/g, '-');
+              if (n1NoDe === n2NoDe) return true;
+              if (n1.includes(n2) || n2.includes(n1)) return true;
+              if (n1NoDe.includes(n2NoDe) || n2NoDe.includes(n1NoDe)) return true;
+              return false;
+          };
+
+          const uniqueOsmLocations = shouldFetchDynamic
+              ? dynamicLocations.filter(osmLoc => !dbLocations.some(dbLoc => namesMatch(dbLoc.name, osmLoc.name)))
+              : [];
+
+          const mergedWithGuides = mergeWithTransportGuides(dbLocations);
+          const combined = [...mergedWithGuides, ...businessLocations, ...uniqueOsmLocations];
+
+          if (combined.length > 0) {
+              setLocations(combined);
+              setOsmError(dynamicError);
+          } else if (hasDbData) {
+              setLocations([...mergedWithGuides, ...businessLocations]);
+              setOsmError(dynamicError);
+          } else {
+              const fallbackLocations: LocationData[] = transportGuides.map((guide) => ({
+                  id: guide.id,
+                  name: guide.name,
+                  position: guide.position,
+                  description: guide.description,
+                  image: guide.image,
+                  locationType: 'attraction' as LocationType,
+                  transport: guide.transport,
+                  coordinateSource: 'manual',
+              }));
+              setLocations(fallbackLocations);
+              setOsmError('Live map data is unavailable at the moment. Showing curated guides instead.');
           }
       };
 
-      loadLocations();
+      loadLocations()
+        .catch(() => {
+          if (!isMounted) {
+            return;
+          }
+          const fallbackLocations: LocationData[] = transportGuides.map((guide) => ({
+            id: guide.id,
+            name: guide.name,
+            position: guide.position,
+            description: guide.description,
+            image: guide.image,
+            locationType: 'attraction' as LocationType,
+            transport: guide.transport,
+            coordinateSource: 'manual',
+          }));
+          setLocations(fallbackLocations);
+          setOsmError('Live map data is unavailable at the moment. Showing curated guides instead.');
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        });
 
       return () => {
           isMounted = false;
       };
-  }, []);
+  }, [includeLiveOsm, isAdmin]);
 
     useEffect(() => {
         if (osmError) {
@@ -910,6 +1185,14 @@ const MapPage: React.FC = () => {
   const handleAdDismiss = useCallback(() => {
     setIsAdBannerDismissed(true);
   }, []);
+
+    const handleToggleLiveOsm = useCallback(() => {
+        if (!isAdmin) {
+            return;
+        }
+        setIncludeLiveOsm(prev => !prev);
+        setIsOsmErrorDismissed(false);
+    }, [isAdmin]);
 
     const handleDismissOsmError = useCallback(() => {
         setIsOsmErrorDismissed(true);
@@ -1005,6 +1288,23 @@ const MapPage: React.FC = () => {
          </div>
        )}
 
+                {isAdmin && (
+                    <div className="absolute top-40 right-4 z-[420] animate-fade-slide-up">
+                        <button
+                            onClick={handleToggleLiveOsm}
+                            className={`px-4 py-2 rounded-xl shadow-lg border text-sm font-semibold flex items-center gap-2 transition-colors ${
+                                includeLiveOsm
+                                    ? 'bg-sky-600 text-white border-sky-600'
+                                    : 'bg-white text-slate-700 border-gray-100 hover:bg-gray-50'
+                            }`}
+                            aria-label={includeLiveOsm ? 'Disable live OpenStreetMap points' : 'Enable live OpenStreetMap points'}
+                        >
+                            <Globe size={16} />
+                            {includeLiveOsm ? 'Live OSM On' : 'Live OSM Off'}
+                        </button>
+                    </div>
+                )}
+
             {osmError && !isOsmErrorDismissed && (
                 <div className="absolute top-24 left-4 right-4 z-[420] animate-fade-slide-up">
                      <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 shadow-lg flex items-start gap-3">
@@ -1040,11 +1340,21 @@ const MapPage: React.FC = () => {
             wheelDebounceTime={150} 
           >
             
-            {locations.map((loc) => {
+            {locations
+                .filter((loc) => {
+                    // Validate that position has valid lat/lng numbers
+                    const [lat, lng] = loc.position;
+                    return typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
+                })
+                .map((loc) => {
                 const initial = loc.name.charAt(0).toUpperCase() || 'B';
+                const isBusiness = loc.locationType === 'business';
+                const gradientColors = isBusiness 
+                    ? 'from-orange-500 via-orange-600 to-orange-700'
+                    : 'from-sky-500 via-sky-600 to-sky-700';
                 const iconHtml = `
-                    <div class="w-12 h-12 rounded-full border-2 border-white shadow-lg bg-gradient-to-br from-sky-500 via-sky-600 to-sky-700 flex items-center justify-center animate-marker-pop">
-                        <span class="text-white font-bold text-lg">${initial}</span>
+                    <div class="w-12 h-12 rounded-full border-2 border-white shadow-lg bg-gradient-to-br ${gradientColors} flex items-center justify-center animate-marker-pop">
+                        <span class="text-white font-bold text-lg">${isBusiness ? '🏪' : initial}</span>
                     </div>
                 `;
 
@@ -1077,6 +1387,7 @@ const MapPage: React.FC = () => {
                location={selectedLocation} 
                onClose={handleCloseDetail}
                onNavigate={handleNavigate}
+               isAdmin={isAdmin}
            />
        )}
 

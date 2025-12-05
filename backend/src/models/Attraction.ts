@@ -14,10 +14,20 @@ export interface IAttraction extends Document {
       lat: number;
       lng: number;
     };
+    manualCoordinates?: {
+      lat: number;
+      lng: number;
+    };
+    osmCoordinates?: {
+      lat: number;
+      lng: number;
+      fetchedAt?: Date;
+      sourceId?: string;
+    };
   };
   
   // Categorization
-  category: 'waterfall' | 'spring' | 'heritage' | 'park' | 'viewpoint' | 'museum' | 'religious' | 'other';
+  category: 'waterfall' | 'spring' | 'heritage' | 'park' | 'viewpoint' | 'museum' | 'religious' | 'nature' | 'other';
   tags?: string[];
   
   // Images
@@ -61,6 +71,9 @@ export interface IAttraction extends Document {
   status: 'active' | 'pending' | 'archived';
   isFeatured: boolean;
   
+  // Coordinate source preference
+  useOsmCoordinates: boolean;
+  
   // Legacy support
   legacyId?: string;
   
@@ -96,11 +109,21 @@ const attractionSchema = new Schema<IAttraction>(
         lat: { type: Number, required: true },
         lng: { type: Number, required: true },
       },
+      manualCoordinates: {
+        lat: { type: Number },
+        lng: { type: Number },
+      },
+      osmCoordinates: {
+        lat: Number,
+        lng: Number,
+        fetchedAt: Date,
+        sourceId: String,
+      },
     },
     
     category: {
       type: String,
-      enum: ['waterfall', 'spring', 'heritage', 'park', 'viewpoint', 'museum', 'religious', 'other'],
+      enum: ['waterfall', 'spring', 'heritage', 'park', 'viewpoint', 'museum', 'religious', 'nature', 'other'],
       required: true,
       index: true,
     },
@@ -154,6 +177,11 @@ const attractionSchema = new Schema<IAttraction>(
       type: Boolean,
       default: false,
       index: true,
+    },
+    
+    useOsmCoordinates: {
+      type: Boolean,
+      default: false,
     },
     
     legacyId: {

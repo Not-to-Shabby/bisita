@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 
 // ======================
 // TYPES
@@ -75,6 +75,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     error: null,
   });
 
+  // Refresh access token
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('accessToken', data.accessToken);
+        return true;
+      }
+
+      // Refresh failed, clear auth
+      localStorage.removeItem('accessToken');
+      setState(prev => ({ ...prev, user: null, isAuthenticated: false }));
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Helper to make authenticated requests
   const authFetch = useCallback(async (endpoint: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('accessToken');
@@ -112,30 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     return response;
-  }, []);
-
-  // Refresh access token
-  const refreshToken = async (): Promise<boolean> => {
-    try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('accessToken', data.accessToken);
-        return true;
-      }
-
-      // Refresh failed, clear auth
-      localStorage.removeItem('accessToken');
-      setState(prev => ({ ...prev, user: null, isAuthenticated: false }));
-      return false;
-    } catch {
-      return false;
-    }
-  };
+  }, [refreshToken]);
 
   // Fetch current user on mount
   const refreshUser = useCallback(async () => {
@@ -191,7 +191,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [refreshUser]);
 
   // Login with email/password
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -229,10 +229,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }));
       return false;
     }
-  };
+  }, []);
 
   // Register new user
-  const register = async (email: string, password: string, username: string): Promise<boolean> => {
+  const register = useCallback(async (email: string, password: string, username: string): Promise<boolean> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -270,10 +270,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }));
       return false;
     }
-  };
+  }, []);
 
   // Logout
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       await fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
@@ -290,23 +290,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isAuthenticated: false,
       error: null,
     });
-  };
+  }, []);
 
   // Clear error
-  const clearError = () => {
+  const clearError = useCallback(() => {
     setState(prev => ({ ...prev, error: null }));
-  };
+  }, []);
 
   // OAuth redirects
-  const loginWithGoogle = () => {
+  const loginWithGoogle = useCallback(() => {
     window.location.href = `${API_URL}/auth/google`;
-  };
+  }, []);
 
-  const loginWithFacebook = () => {
+  const loginWithFacebook = useCallback(() => {
     window.location.href = `${API_URL}/auth/facebook`;
-  };
+  }, []);
 
-  const value: AuthContextType = {
+  const value: AuthContextType = useMemo(() => ({
     ...state,
     login,
     register,
@@ -315,7 +315,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     clearError,
     loginWithGoogle,
     loginWithFacebook,
-  };
+  }), [state, login, register, logout, refreshUser, clearError, loginWithGoogle, loginWithFacebook]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

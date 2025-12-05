@@ -46,6 +46,7 @@ const attractions = [
     stats: { rating: 4.8, reviewCount: 124, viewCount: 0 },
     status: 'active' as const,
     isFeatured: true,
+    useOsmCoordinates: false,
   },
   {
     legacyId: '2',
@@ -55,7 +56,7 @@ const attractions = [
     location: {
       address: 'Barangay Santiago',
       barangay: 'Santiago',
-      coordinates: { lat: 8.2416, lng: 124.2394 },
+      coordinates: { lat: 8.2449985, lng: 124.2423914 }, // OSM verified coordinates
     },
     category: 'park' as const,
     tags: ['park', 'sunset', 'seaside', 'food'],
@@ -81,6 +82,7 @@ const attractions = [
     stats: { rating: 4.5, reviewCount: 89, viewCount: 0 },
     status: 'active' as const,
     isFeatured: true,
+    useOsmCoordinates: false,
   },
   {
     legacyId: '3',
@@ -117,6 +119,7 @@ const attractions = [
     stats: { rating: 4.9, reviewCount: 156, viewCount: 0 },
     status: 'active' as const,
     isFeatured: true,
+    useOsmCoordinates: false,
   },
   {
     legacyId: '4',
@@ -152,6 +155,7 @@ const attractions = [
     stats: { rating: 4.6, reviewCount: 78, viewCount: 0 },
     status: 'active' as const,
     isFeatured: false,
+    useOsmCoordinates: false,
   },
   {
     legacyId: '6',
@@ -187,6 +191,7 @@ const attractions = [
     stats: { rating: 4.4, reviewCount: 45, viewCount: 0 },
     status: 'active' as const,
     isFeatured: false,
+    useOsmCoordinates: false,
   },
   {
     legacyId: '201',
@@ -222,6 +227,7 @@ const attractions = [
     stats: { rating: 4.7, reviewCount: 112, viewCount: 0 },
     status: 'active' as const,
     isFeatured: true,
+    useOsmCoordinates: false,
   },
 ];
 

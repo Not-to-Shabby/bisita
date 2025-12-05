@@ -30,6 +30,20 @@ export interface IBusiness extends Document {
     messenger?: string;
   };
   
+  // Transport (how to get there)
+  transport?: {
+    vehicle?: string;
+    route?: string;
+    duration?: string;
+    fares?: {
+      regular?: string;
+      discounted?: string;
+      habal?: string;
+    };
+    segments?: ('Jeepney' | 'Tricycle' | 'Habal-habal' | 'Walk' | 'Bus')[];
+    note?: string;
+  };
+  
   // Images
   images: string[];
   
@@ -44,6 +58,7 @@ export interface IBusiness extends Document {
   
   // Status
   isVerified: boolean;
+  isActive: boolean;
   status: 'active' | 'pending' | 'suspended';
   
   // Legacy
@@ -104,6 +119,22 @@ const businessSchema = new Schema<IBusiness>(
       messenger: String,
     },
     
+    transport: {
+      vehicle: String,
+      route: String,
+      duration: String,
+      fares: {
+        regular: String,
+        discounted: String,
+        habal: String,
+      },
+      segments: [{
+        type: String,
+        enum: ['Jeepney', 'Tricycle', 'Habal-habal', 'Walk', 'Bus'],
+      }],
+      note: String,
+    },
+    
     images: [String],
     
     nearAttractionIds: [{
@@ -119,6 +150,11 @@ const businessSchema = new Schema<IBusiness>(
     isVerified: {
       type: Boolean,
       default: false,
+      index: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
       index: true,
     },
     status: {

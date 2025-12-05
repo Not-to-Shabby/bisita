@@ -1,11 +1,19 @@
 1. Implement the backend - MongoDB
-    Store the information about the place
-    Store fuzzy logic of the place
-    User authecation (user, admin)
-    Rating data about the place
+    Store the information about the place Done
+    Store fuzzy logic of the place Partially Done
+    User authecation (user, admin) Done
+    Rating data about the place Done
     media information with on device compression (database limitation? free tier)
-    CRUD implementation
+    CRUD implementation DOne
 
+1.1 Fix the damn admin bulk coordinates actions
+    XHRPOST
+http://10.10.79.232:5000/api/attractions/6931b1def48d49728693fee2/sync-osm Partially Done
+1.11 Fix the OpenStreetMap Coordinates Not synced yet in the setting button
+
+1.2 Fix the email fuckery
+1.3 Live map should be shown when the button is enable in the  - Scrap
+1.4 only show the manual coordinates for admin only - Testing
 
 
 2. Remove other icon on the map
@@ -20,3 +28,4 @@
 11. Add google maps api (place api) for fetching landmark information ([paid]) place api -> json -> LLM -> json cache -> bisita
 12. QR based logic scan to see the information
 13. Add the tour guide in navbar also the user account of the tour guide.
+14. Add automated ads banner based on radius of the place

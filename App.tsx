@@ -17,6 +17,7 @@ import GuideDetail from './pages/GuideDetail';
 import MyBookings from './pages/MyBookings';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminAttractions from './pages/admin/AdminAttractions';
+import AdminBusinesses from './pages/admin/AdminBusinesses';
 import AdminVerifications from './pages/admin/AdminVerifications';
 
 const App: React.FC = () => {
@@ -85,6 +86,14 @@ const App: React.FC = () => {
             element={
               <PrivateRoute roles={['admin']}>
                 <AdminAttractions />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/businesses"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <AdminBusinesses />
               </PrivateRoute>
             }
           />
