@@ -70,8 +70,16 @@ app.use(passport.initialize());
 // ROUTES
 // ======================
 
-// Health check
+// Health check (both /health and /api/health for Railway)
 app.get('/health', (_req: Request, res: Response) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV || 'development'
+  });
+});
+
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
