@@ -1,10 +1,25 @@
-import { getAuthToken } from '../context/AuthContext';
-
 // ======================
 // CONFIG
 // ======================
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getApiUrl = () => {
+  // Prefer explicit env override if provided
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+
+  // In development fall back to proxy path
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
+
+  return 'http://localhost:5000/api';
+};
+
+const API_URL = getApiUrl();
+
+const getAuthToken = (): string | null => {
+  return localStorage.getItem('accessToken');
+};
 
 // ======================
 // TYPES
@@ -182,6 +197,7 @@ export interface Business {
     reviewCount: number;
   };
   isVerified: boolean;
+  isFeatured: boolean;
   isActive: boolean;
   status: 'active' | 'pending' | 'suspended';
   createdAt: string;
@@ -242,6 +258,135 @@ export interface GuideBooking {
   notes?: string;
   createdAt: string;
 }
+
+// Event types
+export interface Event {
+  _id: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  location: string;
+  style?: 'soft' | 'bold' | 'image';
+  accentColor?: string;
+  textColor?: string;
+  backgroundColor?: string;
+  gradientFrom?: string;
+  gradientTo?: string;
+  badgeText?: string;
+  badgeEmoji?: string;
+  ctaLabel?: string;
+  overlayOpacity?: number;
+  textTheme?: 'light' | 'dark';
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  image?: string;
+  link?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ======================
+// QUESTS API
+// ======================
+
+export interface Quest {
+  _id: string;
+  title: string;
+  slug: string;
+  description: string;
+  image: string;
+  badgeImage: string;
+  totalExp: number;
+  reward: string;
+  isActive: boolean;
+  tasks: {
+    _id: string;
+    title: string;
+    description: string;
+    qrCodeData?: string;
+  }[];
+}
+
+export interface UserQuest {
+  _id: string;
+  userId: string;
+  questId: string | Quest;
+  status: 'active' | 'completed' | 'dropped';
+  completedTaskIds: string[];
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface GameSettings {
+  confettiEnabled: boolean;
+  xpPerScan: number;
+  cooldownSeconds: number;
+  defaultNextRoute?: string;
+  navigationRules: Array<{
+    pattern: string;
+    targetRoute: string;
+    rewardXp?: number;
+    confetti?: boolean;
+    note?: string;
+    enabled?: boolean;
+  }>;
+}
+
+export const questsApi = {
+  getAll: () => {
+    return apiClient<{ quests: Quest[] }>('/quests');
+  },
+
+  getMyProgress: () => {
+    return apiClient<{ userQuests: UserQuest[] }>('/quests/my-progress');
+  },
+
+  getById: (id: string) => {
+    return apiClient<{ quest: Quest; userQuest: UserQuest | null }>(`/quests/${id}`);
+  },
+
+  start: (id: string) => {
+    return apiClient<{ userQuest: UserQuest }>(`/quests/${id}/start`, {
+      method: 'POST',
+    });
+  },
+
+  scan: (qrData: string, location?: { lat: number; lng: number }) => {
+    return apiClient<{
+      message: string;
+      isQuestComplete: boolean;
+      quest: Quest;
+      task: any;
+      progress: UserQuest;
+      reward?: string;
+      xpAwarded?: number;
+      nextRoute?: string | null;
+      confetti?: boolean;
+    }>('/quests/scan', {
+      method: 'POST',
+      body: JSON.stringify({ qrData, location }),
+    });
+  },
+};
+
+// ======================
+// GAMIFICATION API
+// ======================
+
+export const gamificationApi = {
+  getSettings: () => apiClient<{ settings: GameSettings }>('/gamification/settings'),
+  updateSettings: (settings: Partial<GameSettings>) => apiClient<{ settings: GameSettings }>(
+    '/gamification/settings',
+    {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }
+  ),
+};
 
 // ======================
 // API CLIENT
@@ -432,12 +577,14 @@ export interface OsmPlace {
 // ======================
 
 export const businessesApi = {
-  getAll: (params?: { type?: string; verified?: boolean; nearAttraction?: string; status?: string }) => {
+  getAll: (params?: { type?: string; verified?: boolean; featured?: boolean; nearAttraction?: string; status?: string; limit?: number }) => {
     const searchParams = new URLSearchParams();
     if (params?.type) searchParams.set('type', params.type);
     if (params?.verified) searchParams.set('verified', 'true');
+    if (params?.featured) searchParams.set('featured', 'true');
     if (params?.nearAttraction) searchParams.set('nearAttraction', params.nearAttraction);
     if (params?.status) searchParams.set('status', params.status);
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
     
     const query = searchParams.toString();
     return apiClient<{ businesses: Business[] }>(`/businesses${query ? `?${query}` : ''}`);
@@ -584,6 +731,41 @@ export const reviewsApi = {
 };
 
 // ======================
+// EVENTS API
+// ======================
+
+export const eventsApi = {
+  getAll: (active?: boolean) => {
+    const query = active ? '?active=true' : '';
+    return apiClient<{ events: Event[] }>(`/events${query}`);
+  },
+
+  getById: (id: string) => {
+    return apiClient<{ event: Event }>(`/events/${id}`);
+  },
+
+  create: (data: Partial<Event>) => {
+    return apiClient<{ event: Event }>('/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: (id: string, data: Partial<Event>) => {
+    return apiClient<{ event: Event }>(`/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: (id: string) => {
+    return apiClient<{ message: string }>(`/events/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ======================
 // GUIDES API
 // ======================
 
@@ -625,7 +807,7 @@ export const guidesApi = {
   verify: (guideId: string, isVerified: boolean) => {
     return apiClient<{ guide: Guide }>(`/guides/${guideId}/verify`, {
       method: 'PATCH',
-      body: JSON.stringify({ isVerified }),
+      body: JSON.stringify({ approved: isVerified }),
     });
   },
 };
@@ -684,7 +866,7 @@ export const mediaApi = {
       cloudName: string;
       apiKey: string;
       folder: string;
-    }>('/media/signature', {
+    }>('/media/sign', {
       method: 'POST',
       body: JSON.stringify({ folder }),
     });
@@ -710,6 +892,7 @@ export const mediaApi = {
     formData.append('timestamp', timestamp.toString());
     formData.append('api_key', apiKey);
     formData.append('folder', uploadFolder);
+    formData.append('upload_preset', 'bisita_uploads');
 
     try {
       const xhr = new XMLHttpRequest();
@@ -729,14 +912,20 @@ export const mediaApi = {
               url: response.secure_url,
               publicId: response.public_id,
             });
-          } else {
+            return;
+          }
+
+          try {
+            const errorBody = JSON.parse(xhr.responseText);
+            reject(new Error(errorBody?.error?.message || 'Upload failed'));
+          } catch {
             reject(new Error('Upload failed'));
           }
         };
 
         xhr.onerror = () => reject(new Error('Network error'));
 
-        xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`);
         xhr.send(formData);
       });
 
@@ -752,9 +941,9 @@ export const mediaApi = {
   },
 
   delete: (publicId: string) => {
-    return apiClient<{ message: string }>('/media', {
+    const encodedId = encodeURIComponent(publicId);
+    return apiClient<{ message: string }>(`/media/${encodedId}`, {
       method: 'DELETE',
-      body: JSON.stringify({ publicId }),
     });
   },
 };
@@ -810,6 +999,23 @@ export const authApi = {
       };
     }>('/auth/profile', {
       method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ======================
+// USERS API
+// ======================
+
+export const usersApi = {
+  getAll: () => {
+    return apiClient<{ users: any[] }>('/users');
+  },
+
+  updateRole: (id: string, data: { role: string; managedEntityId?: string }) => {
+    return apiClient<{ user: any }>(`/users/${id}/role`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },

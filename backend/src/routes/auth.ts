@@ -97,8 +97,8 @@ router.post(
 router.post(
   '/login',
   [
-    body('email').isEmail().normalizeEmail(),
-    body('password').notEmpty(),
+    body('email').notEmpty().withMessage('Email or username is required'),
+    body('password').notEmpty().withMessage('Password is required'),
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -108,19 +108,25 @@ router.post(
         return;
       }
 
-      const { email, password } = req.body;
+      const { email: identifier, password } = req.body;
 
-      // Find user with password
-      const user = await User.findOne({ email }).select('+passwordHash');
+      // Find user with password by email OR username
+      const user = await User.findOne({
+        $or: [
+          { email: identifier.toLowerCase() },
+          { username: { $regex: new RegExp(`^${identifier}$`, 'i') } }
+        ]
+      }).select('+passwordHash');
+
       if (!user || !user.passwordHash) {
-        res.status(401).json({ error: 'Invalid email or password' });
+        res.status(401).json({ error: 'Invalid email/username or password' });
         return;
       }
 
       // Check password
       const isMatch = await user.comparePassword(password);
       if (!isMatch) {
-        res.status(401).json({ error: 'Invalid email or password' });
+        res.status(401).json({ error: 'Invalid email/username or password' });
         return;
       }
 

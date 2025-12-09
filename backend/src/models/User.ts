@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-export type UserRole = 'tourist' | 'business_owner' | 'guide' | 'admin';
+export type UserRole = 'tourist' | 'business_owner' | 'guide' | 'admin' | 'manager';
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
@@ -10,6 +10,7 @@ export interface IUser extends Document {
   username: string;
   avatar?: string;
   role: UserRole;
+  managedEntityId?: string;
   isEmailVerified: boolean;
   
   // OAuth IDs
@@ -80,9 +81,13 @@ const userSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['tourist', 'business_owner', 'guide', 'admin'],
+      enum: ['tourist', 'business_owner', 'guide', 'admin', 'manager'],
       default: 'tourist',
       index: true,
+    },
+    managedEntityId: {
+      type: String,
+      sparse: true,
     },
     isEmailVerified: {
       type: Boolean,

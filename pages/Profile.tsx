@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BottomNav from '../components/BottomNav';
 import AvatarUploader from '../components/AvatarUploader';
 import { useAuth } from '../context/AuthContext';
-import { authApi } from '../services/api';
+import { authApi, bookingsApi } from '../services/api';
 import { 
   ArrowLeft, 
   User, 
@@ -22,7 +22,9 @@ import {
   Users,
   Mountain,
   Store,
-  BarChart3
+  BarChart3,
+  QrCode,
+  LayoutDashboard
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -76,6 +78,20 @@ const Profile: React.FC = () => {
   const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
+
+  useEffect(() => {
+    if (user?.role === 'guide' && bookingsApi) {
+      bookingsApi.getAsGuide()
+        .then(res => {
+          if (res.data?.bookings) {
+            const pending = res.data.bookings.filter(b => b.status === 'pending').length;
+            setPendingBookingsCount(pending);
+          }
+        })
+        .catch(err => console.error('Failed to fetch booking requests:', err));
+    }
+  }, [user?.role]);
 
   const handleLogout = async () => {
     await logout();
@@ -278,13 +294,14 @@ const Profile: React.FC = () => {
               <MenuRow
                 icon={MapPin}
                 label="My tours"
-                onClick={() => alert('Tours feature coming soon')}
+                onClick={() => navigate('/bookings')}
               />
               <div className="h-[1px] bg-gray-100 mx-4" />
               <MenuRow
                 icon={Calendar}
                 label="Booking requests"
-                onClick={() => alert('Bookings feature coming soon')}
+                badge={pendingBookingsCount > 0 ? `${pendingBookingsCount} new` : undefined}
+                onClick={() => navigate('/bookings')}
               />
               <div className="h-[1px] bg-gray-100 mx-4" />
               <div className="p-4">
@@ -315,6 +332,18 @@ const Profile: React.FC = () => {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Admin Dashboard</h3>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
               <MenuRow
+                icon={LayoutDashboard}
+                label="Dashboard Overview"
+                onClick={() => navigate('/admin')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
+                icon={QrCode}
+                label="QR Code Generator"
+                onClick={() => navigate('/admin/qr-generator')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
                 icon={Mountain}
                 label="Manage Attractions"
                 onClick={() => navigate('/admin/attractions')}
@@ -327,15 +356,27 @@ const Profile: React.FC = () => {
               />
               <div className="h-[1px] bg-gray-100 mx-4" />
               <MenuRow
+                icon={Calendar}
+                label="Manage Events"
+                onClick={() => navigate('/admin/events')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
                 icon={Users}
                 label="Manage Users"
-                onClick={() => alert('User management coming soon')}
+                onClick={() => navigate('/admin/users')}
               />
               <div className="h-[1px] bg-gray-100 mx-4" />
               <MenuRow
                 icon={BadgeCheck}
                 label="Verifications"
                 onClick={() => navigate('/admin/verifications')}
+              />
+              <div className="h-[1px] bg-gray-100 mx-4" />
+              <MenuRow
+                icon={Settings}
+                label="Game Settings"
+                onClick={() => navigate('/admin/game-settings')}
               />
               <div className="h-[1px] bg-gray-100 mx-4" />
               <MenuRow
@@ -367,6 +408,13 @@ const Profile: React.FC = () => {
             isDestructive
             onClick={() => setShowLogoutConfirm(true)}
           />
+        </div>
+
+        {/* Version info */}
+        <div className="mt-8 mb-4 text-center">
+          <p className="text-xs text-slate-400">
+            Version 0.1 · Development Build
+          </p>
         </div>
       </div>
 

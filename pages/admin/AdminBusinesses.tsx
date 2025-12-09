@@ -226,6 +226,7 @@ const BusinessForm: React.FC<BusinessFormProps> = ({ business, attractions, onCl
     messenger: business?.contact?.messenger || '',
     nearAttractionIds: business?.nearAttractionIds || [],
     isVerified: business?.isVerified || false,
+    isFeatured: business?.isFeatured || false,
     status: business?.status || 'pending',
     // Transport fields
     transportVehicle: business?.transport?.vehicle || '',
@@ -293,6 +294,7 @@ const BusinessForm: React.FC<BusinessFormProps> = ({ business, attractions, onCl
         },
         nearAttractionIds: formData.nearAttractionIds,
         isVerified: formData.isVerified,
+        isFeatured: formData.isFeatured,
         status: formData.status as 'active' | 'pending' | 'suspended',
       });
       onClose();
@@ -453,6 +455,15 @@ const BusinessForm: React.FC<BusinessFormProps> = ({ business, attractions, onCl
                       className="w-4 h-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
                     />
                     <span className="text-sm text-slate-700">Verified</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isFeatured}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isFeatured: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="text-sm text-slate-700">Featured</span>
                   </label>
                   <select
                     value={formData.status}
@@ -1291,6 +1302,9 @@ const AdminBusinesses: React.FC = () => {
                       <h3 className="font-bold text-slate-900 truncate">{business.name}</h3>
                       {business.isVerified && (
                         <BadgeCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      )}
+                      {business.isFeatured && (
+                        <Star className="w-4 h-4 text-amber-400 fill-amber-400 flex-shrink-0" />
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">

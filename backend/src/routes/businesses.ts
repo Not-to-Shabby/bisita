@@ -26,6 +26,7 @@ router.get(
   [
     query('type').optional().isString(),
     query('verified').optional().isBoolean(),
+    query('featured').optional().isBoolean(),
     query('search').optional().isString(),
     query('nearAttraction').optional().isString(),
     query('limit').optional().isInt({ min: 1, max: 50 }),
@@ -36,6 +37,7 @@ router.get(
       const {
         type,
         verified,
+        featured,
         search,
         nearAttraction,
         limit = 20,
@@ -50,6 +52,10 @@ router.get(
 
       if (verified === 'true') {
         filter.isVerified = true;
+      }
+
+      if (featured === 'true') {
+        filter.isFeatured = true;
       }
 
       if (search) {

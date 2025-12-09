@@ -11,7 +11,9 @@ import {
   AlertCircle,
   Settings,
   BarChart3,
-  Shield
+  Shield,
+  Calendar,
+  QrCode
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { attractionsApi, businessesApi, guidesApi, Attraction, Business, Guide } from '../../services/api';
@@ -221,6 +223,18 @@ const AdminDashboard: React.FC = () => {
           />
         </div>
 
+        {/* Tools */}
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+          Tools
+        </h3>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+          <MenuRow
+            icon={QrCode}
+            label="QR Code Generator"
+            onClick={() => navigate('/admin/qr-generator')}
+          />
+        </div>
+
         {/* Management Menu */}
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
           Content Management
@@ -245,6 +259,12 @@ const AdminDashboard: React.FC = () => {
             label="Manage Guides"
             badge={stats.guides}
             onClick={() => navigate('/admin/guides')}
+          />
+          <div className="h-[1px] bg-gray-100 mx-4" />
+          <MenuRow
+            icon={Calendar}
+            label="Manage Events"
+            onClick={() => navigate('/admin/events')}
           />
         </div>
 

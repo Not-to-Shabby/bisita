@@ -15,10 +15,15 @@ import ScanQR from './pages/ScanQR';
 import GuidesPage from './pages/GuidesPage';
 import GuideDetail from './pages/GuideDetail';
 import MyBookings from './pages/MyBookings';
+import QuestDetail from './pages/QuestDetail';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminAttractions from './pages/admin/AdminAttractions';
 import AdminBusinesses from './pages/admin/AdminBusinesses';
 import AdminVerifications from './pages/admin/AdminVerifications';
+import AdminEvents from './pages/admin/AdminEvents';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminQRGenerator from './pages/admin/AdminQRGenerator';
+import AdminGameSettings from './pages/admin/AdminGameSettings';
 
 const App: React.FC = () => {
   return (
@@ -37,6 +42,7 @@ const App: React.FC = () => {
           <Route path="/attraction/:id" element={<AttractionDetail />} />
           <Route path="/guides" element={<GuidesPage />} />
           <Route path="/guide/:id" element={<GuideDetail />} />
+          <Route path="/quest/:id" element={<QuestDetail />} />
           
           {/* Protected routes - require authentication */}
           <Route
@@ -102,6 +108,38 @@ const App: React.FC = () => {
             element={
               <PrivateRoute roles={['admin']}>
                 <AdminVerifications />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/events"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <AdminEvents />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <AdminUsers />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/qr-generator"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <AdminQRGenerator />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/game-settings"
+            element={
+              <PrivateRoute roles={['admin']}>
+                <AdminGameSettings />
               </PrivateRoute>
             }
           />

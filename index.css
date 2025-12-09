@@ -80,12 +80,21 @@
     animation: float-pulse 3s ease-in-out infinite;
   }
 
-  .animate-carousel-glide {
-    animation: carousel-glide 20s ease-in-out infinite alternate;
-  }
-
   .animate-marker-pop {
     animation: marker-pop 0.45s ease-out forwards;
+  }
+
+  @keyframes infinite-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  .animate-infinite-scroll {
+    animation: infinite-scroll 40s linear infinite;
+  }
+
+  .pause-on-hover:hover {
+    animation-play-state: paused;
   }
 
   .animate-gradient-pan {

@@ -58,6 +58,7 @@ export interface IBusiness extends Document {
   
   // Status
   isVerified: boolean;
+  isFeatured: boolean;
   isActive: boolean;
   status: 'active' | 'pending' | 'suspended';
   
@@ -148,6 +149,11 @@ const businessSchema = new Schema<IBusiness>(
     },
     
     isVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isFeatured: {
       type: Boolean,
       default: false,
       index: true,

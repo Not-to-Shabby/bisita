@@ -27,3 +27,31 @@ export interface User {
   reviewCount: number;
   contributionCount: number;
 }
+
+export interface QuestTask {
+  id: string;
+  title: string;
+  description: string;
+  locationId?: string; // Link to an attraction
+  isCompleted: boolean;
+}
+
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  badgeImage: string;
+  tasks: QuestTask[];
+  reward: string;
+  totalExp: number;
+}
+
+export interface UserQuestProgress {
+  questId: string;
+  userId: string;
+  completedTaskIds: string[];
+  status: 'active' | 'completed';
+  startedAt: string;
+  completedAt?: string;
+}

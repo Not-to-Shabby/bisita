@@ -34,6 +34,8 @@ router.get(
 
       if (verified === 'true') {
         filter['guideProfile.isVerified'] = true;
+      } else if (verified === 'false') {
+        filter['guideProfile.isVerified'] = false;
       }
 
       if (status) {
@@ -222,6 +224,7 @@ router.patch(
         if (approved) {
           guide.guideProfile.status = 'available';
         }
+        guide.markModified('guideProfile');
       }
 
       await guide.save();
@@ -238,17 +241,43 @@ router.patch(
 );
 
 // ======================
-// REQUEST BOOKING
+// GET BOOKING REQUESTS (Guide)
+// ======================
+router.get(
+  '/bookings/requests',
+  authenticate,
+  requireVerifiedGuide,
+  asHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const bookings = await GuideBooking.find({
+        guideId: req.user!._id,
+      })
+        .populate('touristId', 'username avatar email')
+        .populate('attractionIds', 'name slug')
+        .sort({ date: -1 });
+
+      res.json({ bookings });
+    } catch (error) {
+      console.error('Error fetching booking requests:', error);
+      res.status(500).json({ error: 'Failed to fetch bookings' });
+    }
+  })
+);
+
+// ======================
+// CREATE BOOKING
 // ======================
 router.post(
-  '/:guideId/book',
+  '/bookings',
   authenticate,
   [
+    body('guideId').isMongoId(),
     body('attractionIds').isArray({ min: 1 }),
     body('date').isISO8601(),
-    body('duration').isIn(['Half day', 'Full day', 'Multi-day']),
+    body('duration').isInt({ min: 1 }),
     body('groupSize').isInt({ min: 1, max: 50 }),
     body('notes').optional().trim().isLength({ max: 500 }),
+    body('startTime').optional().isString(),
   ],
   asHandler(async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -258,8 +287,7 @@ router.post(
         return;
       }
 
-      const { guideId } = req.params;
-      const { attractionIds, date, duration, groupSize, notes } = req.body;
+      const { guideId, attractionIds, date, duration, groupSize, notes, startTime } = req.body;
 
       // Verify guide exists and is available
       const guide = await User.findOne({
@@ -279,9 +307,11 @@ router.post(
         guideId,
         attractionIds,
         date: new Date(date),
+        startTime: startTime || '09:00',
         duration,
         groupSize,
         notes,
+        totalPrice: (guide.guideProfile?.rate || 500) * duration * (groupSize > 4 ? 1.5 : 1),
         status: 'pending',
       });
 
@@ -295,6 +325,34 @@ router.post(
     } catch (error) {
       console.error('Error creating booking:', error);
       res.status(500).json({ error: 'Failed to create booking' });
+    }
+  })
+);
+
+// ======================
+// GET MY BOOKINGS (Unified)
+// ======================
+router.get(
+  '/bookings/mine',
+  authenticate,
+  asHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const isGuide = req.user!.role === 'guide';
+      
+      const filter = isGuide 
+        ? { guideId: req.user!._id }
+        : { touristId: req.user!._id };
+
+      const bookings = await GuideBooking.find(filter)
+        .populate('touristId', 'username avatar email')
+        .populate('guideId', 'username avatar guideProfile')
+        .populate('attractionIds', 'name slug')
+        .sort({ date: -1 });
+
+      res.json({ bookings });
+    } catch (error) {
+      console.error('Error fetching my bookings:', error);
+      res.status(500).json({ error: 'Failed to fetch bookings' });
     }
   })
 );
@@ -347,14 +405,14 @@ router.get(
 );
 
 // ======================
-// RESPOND TO BOOKING (Guide)
+// UPDATE BOOKING STATUS (Guide)
 // ======================
 router.patch(
-  '/bookings/:id/respond',
+  '/bookings/:id/status',
   authenticate,
   requireVerifiedGuide,
   [
-    body('status').isIn(['accepted', 'declined']),
+    body('status').isIn(['accepted', 'declined', 'completed']),
     body('response').optional().trim().isLength({ max: 500 }),
   ],
   asHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -371,17 +429,23 @@ router.patch(
       const booking = await GuideBooking.findOne({
         _id: id,
         guideId: req.user!._id,
-        status: 'pending',
       });
 
       if (!booking) {
-        res.status(404).json({ error: 'Booking not found or already responded' });
+        res.status(404).json({ error: 'Booking not found' });
+        return;
+      }
+
+      // Validate status transitions
+      if (booking.status === 'cancelled') {
+        res.status(400).json({ error: 'Cannot update cancelled booking' });
         return;
       }
 
       booking.status = status;
-      booking.guideResponse = response;
-      booking.respondedAt = new Date();
+      if (response) booking.guideResponse = response;
+      if (status !== 'pending') booking.respondedAt = new Date();
+      
       await booking.save();
 
       await booking.populate([
@@ -391,42 +455,8 @@ router.patch(
 
       res.json({ booking });
     } catch (error) {
-      console.error('Error responding to booking:', error);
-      res.status(500).json({ error: 'Failed to respond to booking' });
-    }
-  })
-);
-
-// ======================
-// COMPLETE BOOKING (Guide)
-// ======================
-router.patch(
-  '/bookings/:id/complete',
-  authenticate,
-  requireVerifiedGuide,
-  asHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-      const { id } = req.params;
-
-      const booking = await GuideBooking.findOneAndUpdate(
-        {
-          _id: id,
-          guideId: req.user!._id,
-          status: 'accepted',
-        },
-        { status: 'completed' },
-        { new: true }
-      );
-
-      if (!booking) {
-        res.status(404).json({ error: 'Booking not found or not accepted' });
-        return;
-      }
-
-      res.json({ booking });
-    } catch (error) {
-      console.error('Error completing booking:', error);
-      res.status(500).json({ error: 'Failed to complete booking' });
+      console.error('Error updating booking status:', error);
+      res.status(500).json({ error: 'Failed to update booking status' });
     }
   })
 );

@@ -11,7 +11,10 @@ export const sendVerificationEmail = async (
   username: string,
   token: string
 ): Promise<boolean> => {
-  const verifyUrl = `${frontendUrl}/verify-email?token=${token}`;
+  const verifyUrl = `${frontendUrl}/#/verify-email?token=${token}`;
+
+  console.log('📧 Attempting to send verification email to:', email);
+  console.log('📧 Verify URL:', verifyUrl);
 
   try {
     await resend.emails.send({
@@ -61,10 +64,15 @@ export const sendPasswordResetEmail = async (
   username: string,
   token: string
 ): Promise<boolean> => {
-  const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+  const resetUrl = `${frontendUrl}/#/reset-password?token=${token}`;
+
+  console.log('📧 Attempting to send password reset email to:', email);
+  console.log('📧 Reset URL:', resetUrl);
+  console.log('📧 Using from address:', emailFrom);
+  console.log('📧 Resend API Key configured:', !!process.env.RESEND_API_KEY);
 
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: emailFrom,
       to: email,
       subject: 'Reset your Bisita Iligan password',
@@ -99,9 +107,10 @@ export const sendPasswordResetEmail = async (
       `,
     });
 
+    console.log('📧 Password reset email sent successfully:', result);
     return true;
   } catch (error) {
-    console.error('Failed to send password reset email:', error);
+    console.error('❌ Failed to send password reset email:', error);
     return false;
   }
 };
@@ -139,7 +148,7 @@ export const sendGuideApprovalEmail = async (
                   Congratulations! Your application to become a Bisita Iligan tour guide has been approved. 
                   You can now update your availability and start receiving booking requests from tourists.
                 </p>
-                <a href="${frontendUrl}/profile" style="display: block; background: #059669; color: white; text-decoration: none; padding: 14px 24px; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px;">
+                <a href="${frontendUrl}/#/profile" style="display: block; background: #059669; color: white; text-decoration: none; padding: 14px 24px; border-radius: 12px; text-align: center; font-weight: 600; font-size: 16px;">
                   Go to Your Profile
                 </a>
               `

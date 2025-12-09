@@ -3,12 +3,38 @@ import dotenv from 'dotenv';
 import Attraction from '../models/Attraction.js';
 import Business from '../models/Business.js';
 import User from '../models/User.js';
+import Quest from '../models/Quest.js';
 
 dotenv.config();
 
 // ======================
 // SEED DATA
 // ======================
+
+const quests = [
+  {
+    title: 'Iligan Explorer',
+    slug: 'iligan-explorer',
+    description: 'Visit the most iconic spots in Iligan City and prove your journey!',
+    image: 'https://images.unsplash.com/photo-1534531173927-aeb928d54385?auto=format&fit=crop&w=900&q=80',
+    badgeImage: 'https://cdn-icons-png.flaticon.com/512/6270/6270515.png',
+    totalExp: 500,
+    reward: 'Explorer Badge + 10% Discount at Cheding\'s',
+    isActive: true,
+    tasks: [
+      {
+        title: 'Welcome to Iligan',
+        description: 'Scan the welcome QR code at the city entrance or tourism office.',
+        qrCodeData: 'BisitaIligan', // Matches the frontend mockup
+      },
+      {
+        title: 'Visit Maria Cristina Falls',
+        description: 'Find the QR code at the viewing deck of the majestic falls.',
+        qrCodeData: 'MariaCristinaFalls',
+      }
+    ]
+  }
+];
 
 const attractions = [
   {
@@ -348,6 +374,12 @@ const seed = async (): Promise<void> => {
     }));
     await Business.insertMany(businessesWithOwner);
     console.log(`✅ Seeded ${businesses.length} businesses`);
+
+    // Seed quests
+    console.log('📜 Seeding quests...');
+    await Quest.deleteMany({});
+    await Quest.insertMany(quests);
+    console.log(`✅ Seeded ${quests.length} quests`);
 
     console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

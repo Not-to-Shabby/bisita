@@ -51,7 +51,17 @@ interface AuthContextType extends AuthState {
 // API CONFIG
 // ======================
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const getApiUrl = () => {
+  // In development, use relative path to leverage Vite proxy (avoids mixed content issues)
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
+
+  const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  return envUrl;
+};
+
+const API_URL = getApiUrl();
 
 // ======================
 // CONTEXT
@@ -215,10 +225,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
 
+      // Handle express-validator errors
+      const errorMessage = data.errors 
+        ? data.errors.map((e: any) => e.msg).join(', ') 
+        : (data.error || 'Login failed');
+
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: data.error || 'Login failed',
+        error: errorMessage,
       }));
       return false;
     } catch {

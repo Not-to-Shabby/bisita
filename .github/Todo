@@ -6,9 +6,7 @@
     media information with on device compression (database limitation? free tier)
     CRUD implementation DOne
 
-1.1 Fix the damn admin bulk coordinates actions
-    XHRPOST
-http://10.10.79.232:5000/api/attractions/6931b1def48d49728693fee2/sync-osm Partially Done
+
 1.11 Fix the OpenStreetMap Coordinates Not synced yet in the setting button
 
 1.2 Fix the email fuckery
@@ -27,5 +25,10 @@ http://10.10.79.232:5000/api/attractions/6931b1def48d49728693fee2/sync-osm Parti
 10. tour guide need delibration
 11. Add google maps api (place api) for fetching landmark information ([paid]) place api -> json -> LLM -> json cache -> bisita
 12. QR based logic scan to see the information
+    Gamification ("Iligan Quests") need basic function
+    
 13. Add the tour guide in navbar also the user account of the tour guide.
 14. Add automated ads banner based on radius of the place
+15. QR code needs to profile to generate Done
+16. even need more use image instead of color
+17. When exit in qr the camera is stop
