@@ -119,6 +119,10 @@ const Home: React.FC = () => {
         const processBusiness = (business: Business) => {
           const id = business.legacyId || business._id;
           if (!processedIds.has(id)) {
+            const primaryImage = (business.images && business.images.length > 0)
+              ? business.images[0]
+              : getMediaSafe(business.legacyId || '');
+
             apiSpots.push({
               id,
               name: business.name,
@@ -126,7 +130,7 @@ const Home: React.FC = () => {
                         business.type === 'accommodation' ? 'Stay' : 
                         business.type === 'activity' ? 'Activity' : 'Shop',
               location: business.location.address,
-              image: business.coverImage || (business.images && business.images.length > 0 ? business.images[0] : getMediaSafe(business.legacyId || '')),
+              image: primaryImage,
               rating: business.stats.rating || 0,
               transport: 'Tricycle / Walk',
               isVerified: business.isVerified,
