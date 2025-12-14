@@ -114,9 +114,9 @@
 **[Screen: Contact information and QR code]**
 
 **Text on screen**:  
-- **Website**: bisita-iligan.vercel.app  
-- **GitHub**: github.com/Not-to-Shabby/bisita  
-- **Contact**: [Your Email]  
+- **Website**: https://bisita-iligan.vercel.app  
+- **GitHub**: https://github.com/Not-to-Shabby/bisita  
+- **Contact**: [Replace with actual contact email]  
 
 **Narrator**:  
 *"Join us in revolutionizing Philippine tourism."*
