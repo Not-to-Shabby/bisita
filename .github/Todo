@@ -10,25 +10,20 @@
 1.11 Fix the OpenStreetMap Coordinates Not synced yet in the setting button
 
 1.2 Fix the email fuckery
-1.3 Live map should be shown when the button is enable in the  - Scrap
-1.4 only show the manual coordinates for admin only - Testing
 
 
 2. Remove other icon on the map
 3. Implement route guidance of jeep on the current position of the User and including the fare based on the distance and mandated the fare from LTFRB for (transport) routing    
-4. Implement the search function with filtering show whether it restaurant or msme or hotel or ligo-anan
 5. Build a mobile app using the PWA instead
-6. in the home add the seasonal events
 7. in the home when the user press the some locatio, it should show the location button as well go to the map.
-8. Add animation it seem to boring to say the least
 9. Add ads banner in the home also
-10. tour guide need delibration
-11. Add google maps api (place api) for fetching landmark information ([paid]) place api -> json -> LLM -> json cache -> bisita
-12. QR based logic scan to see the information
-    Gamification ("Iligan Quests") need basic function
+12. QR based logic scan to see the information Done
+    Gamification ("Iligan Quests") need basic function Done
     
-13. Add the tour guide in navbar also the user account of the tour guide.
+13. Add the tour guide in navbar also the user account of the tour guide. 
 14. Add automated ads banner based on radius of the place
 15. QR code needs to profile to generate Done
 16. even need more use image instead of color
-17. When exit in qr the camera is stop
+17. When exit in qr the camera is stop Done
+
+18. Add implement the backend image query using the cloudinary and use the some link for fallback

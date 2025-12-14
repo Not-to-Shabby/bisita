@@ -40,7 +40,7 @@ const fallbackGuides: Guide[] = [
       phone: '+63 912 345 6789',
       messenger: 'juan.delacruz',
     },
-    stats: { reviewCount: 45 },
+    stats: { reviewCount: 0 },
   },
   {
     _id: '2',
@@ -54,7 +54,7 @@ const fallbackGuides: Guide[] = [
       status: 'available',
       isVerified: true,
     },
-    stats: { reviewCount: 32 },
+    stats: { reviewCount: 0 },
   },
   {
     _id: '3',
@@ -68,7 +68,7 @@ const fallbackGuides: Guide[] = [
       status: 'on_tour',
       isVerified: true,
     },
-    stats: { reviewCount: 28 },
+    stats: { reviewCount: 0 },
   },
   {
     _id: '4',
@@ -82,7 +82,7 @@ const fallbackGuides: Guide[] = [
       status: 'available',
       isVerified: false,
     },
-    stats: { reviewCount: 15 },
+    stats: { reviewCount: 0 },
   },
 ];
 

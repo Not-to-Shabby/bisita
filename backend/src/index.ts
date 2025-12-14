@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import passport from 'passport';
+import cron from 'node-cron';
 
 // Load environment variables first
 dotenv.config();
@@ -10,6 +11,7 @@ dotenv.config();
 import connectDB from './config/db.js';
 import { configureCloudinary } from './config/cloudinary.js';
 import configurePassport from './config/passport.js';
+import Quest from './models/Quest.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -64,6 +66,11 @@ app.use(cors({
     
     // Allow if in allowedOrigins list
     if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow local network IPs (192.168.x.x)
+    if (origin && origin.match(/^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/)) {
       return callback(null, true);
     }
     
@@ -167,6 +174,23 @@ const startServer = async (): Promise<void> => {
     // Configure services
     configureCloudinary();
     configurePassport();
+
+    // Schedule daily cron job at midnight to auto-deactivate expired quests
+    cron.schedule('0 0 * * *', async () => {
+      try {
+        const now = new Date();
+        const result = await Quest.updateMany(
+          { endDate: { $lt: now }, isActive: true },
+          { isActive: false }
+        );
+        if (result.modifiedCount > 0) {
+          console.log(`🕐 Cron: Auto-deactivated ${result.modifiedCount} expired quest(s)`);
+        }
+      } catch (error) {
+        console.error('❌ Cron: Failed to deactivate expired quests:', error);
+      }
+    });
+    console.log('🕐 Cron job scheduled: Quest auto-deactivation at midnight');
     
     console.log('✅ All services initialized');
   } catch (error) {

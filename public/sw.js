@@ -10,6 +10,10 @@ const API_CACHE = 'bisita-api-v1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/manifest.webmanifest',
+  '/icons/icon-192.svg',
+  '/icons/icon-512.svg',
+  '/icons/maskable-512.svg',
 ];
 
 // ======================

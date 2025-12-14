@@ -42,6 +42,8 @@ export interface IUser extends Document {
   stats: {
     reviewCount: number;
     contributionCount: number;
+    xp: number;
+    level: number;
   };
   
   // Legacy support
@@ -136,6 +138,8 @@ const userSchema = new Schema<IUser>(
     stats: {
       reviewCount: { type: Number, default: 0 },
       contributionCount: { type: Number, default: 0 },
+      xp: { type: Number, default: 0 },
+      level: { type: Number, default: 1 },
     },
     
     // Legacy

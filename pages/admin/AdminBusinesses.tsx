@@ -434,7 +434,7 @@ const BusinessForm: React.FC<BusinessFormProps> = ({ business, attractions, onCl
 
               {/* Images */}
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">Images</label>
+                <label className="text-sm font-medium text-slate-700 mb-1 block">Images (First image is cover)</label>
                 <ImageUploader
                   folder="businesses"
                   maxFiles={10}

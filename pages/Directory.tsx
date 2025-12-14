@@ -26,12 +26,12 @@ const Directory: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const hardcodedItems: DirectoryItem[] = [
-    { id: '5', name: "Go Hotels Iligan", category: 'Accommodation', rating: 4.4, reviews: 320, location: 'Robinson\'s Place, Iligan', image: getMedia('goHotels'), type: 'Business' },
-    { id: '7', name: "Jacko's Kan-anan", category: 'Restaurants', rating: 4.7, reviews: 542, location: 'Hinaplanon, Iligan', image: getMedia('jackosKananan'), type: 'Business' },
-    { id: '6', name: "Macaraeg-Macapagal House", category: 'Heritage', rating: 4.9, reviews: 120, location: 'Timoga, Buru-un', image: getMedia('macaraegHouse'), type: 'Attraction' },
-    { id: '8', name: "Delecta Diner and Café", category: 'Restaurants', rating: 4.6, reviews: 210, location: 'Gen. Aguinaldo St.', image: getMedia('delectaDiner'), type: 'Business' },
-    { id: '9', name: "NPC Nature's Park", category: 'Activities', rating: 4.8, reviews: 150, location: 'Maria Cristina', image: getMedia('npcNaturesPark'), type: 'Attraction' },
-    { id: '10', name: "Buru-un Wet Market", category: 'Market', rating: 4.3, reviews: 85, location: 'Buru-un', image: getMedia('buruunMarket'), type: 'Business' },
+    { id: '5', name: "Go Hotels Iligan", category: 'Accommodation', rating: 0, reviews: 0, location: 'Robinson\'s Place, Iligan', image: getMedia('goHotels'), type: 'Business' },
+    { id: '7', name: "Jacko's Kan-anan", category: 'Restaurants', rating: 0, reviews: 0, location: 'Hinaplanon, Iligan', image: getMedia('jackosKananan'), type: 'Business' },
+    { id: '6', name: "Macaraeg-Macapagal House", category: 'Heritage', rating: 0, reviews: 0, location: 'Timoga, Buru-un', image: getMedia('macaraegHouse'), type: 'Attraction' },
+    { id: '8', name: "Delecta Diner and Café", category: 'Restaurants', rating: 0, reviews: 0, location: 'Gen. Aguinaldo St.', image: getMedia('delectaDiner'), type: 'Business' },
+    { id: '9', name: "NPC Nature's Park", category: 'Activities', rating: 0, reviews: 0, location: 'Maria Cristina', image: getMedia('npcNaturesPark'), type: 'Attraction' },
+    { id: '10', name: "Buru-un Wet Market", category: 'Market', rating: 0, reviews: 0, location: 'Buru-un', image: getMedia('buruunMarket'), type: 'Business' },
   ];
 
   useEffect(() => {
@@ -40,7 +40,7 @@ const Directory: React.FC = () => {
         const [attractionsRes, businessesRes, guidesRes] = await Promise.all([
           attractionsApi.getAll(),
           businessesApi.getAll(),
-          guidesApi.getAll({ verified: false })
+          guidesApi.getAll({ verified: true })
         ]);
 
         const apiItems: DirectoryItem[] = [];
@@ -50,10 +50,10 @@ const Directory: React.FC = () => {
             id: a._id,
             name: a.name,
             category: a.category.charAt(0).toUpperCase() + a.category.slice(1),
-            rating: a.stats.averageRating || 0,
+            rating: a.stats.rating || 0,
             reviews: a.stats.reviewCount || 0,
             location: a.location.address || a.location.barangay,
-            image: a.coverImage || (a.gallery && a.gallery[0]) || '',
+              image: (a.images && a.images.length > 0 ? a.images[0].url : undefined) || a.coverImage || (a.gallery && a.gallery[0]) || '',
             type: 'Attraction' as const
           })));
         }
@@ -79,13 +79,13 @@ const Directory: React.FC = () => {
             rating: g.guideProfile?.rate || 5.0, 
             reviews: g.stats.reviewCount || 0,
             location: 'Iligan City',
-            image: g.avatar || '',
+            image: g.avatar || `https://ui-avatars.com/api/?name=${g.username}&background=0ea5e9&color=fff`,
             type: 'Guide' as const,
             isVerified: g.guideProfile?.isVerified
           })));
         }
 
-        setItems([...hardcodedItems, ...apiItems]);
+        setItems(apiItems.length > 0 ? apiItems : hardcodedItems);
       } catch (error) {
         console.error("Error fetching directory data:", error);
         setItems(hardcodedItems);
@@ -162,7 +162,7 @@ const Directory: React.FC = () => {
             style={{ animationDelay: `${index * 70}ms` }}
             >
               <img 
-                src={item.image} 
+                src={item.image || `https://picsum.photos/100/100?random=${item.id}`} 
                 alt={item.name} 
                 className="w-20 h-20 rounded-xl object-cover bg-gray-200"
                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/100/100?random=' + item.id }} 
@@ -186,9 +186,17 @@ const Directory: React.FC = () => {
                     {item.location}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Star size={14} className="text-yellow-400 fill-yellow-400" />
-                  <span className="text-sm font-bold text-slate-800">{item.rating}</span>
-                  <span className="text-sm text-gray-500">({item.reviews})</span>
+                  {item.reviews > 0 ? (
+                    <>
+                      <Star size={14} className="text-yellow-400 fill-yellow-400" />
+                      <span className="text-sm font-bold text-slate-800">{item.rating.toFixed(1)}</span>
+                      <span className="text-sm text-gray-500">({item.reviews})</span>
+                    </>
+                  ) : (
+                    <span className="text-xs font-bold bg-gray-100 text-slate-600 px-2 py-0.5 rounded-full">
+                      New • No reviews yet
+                    </span>
+                  )}
                 </div>
               </div>
               <ChevronRight className="text-gray-300" />

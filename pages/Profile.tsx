@@ -413,7 +413,7 @@ const Profile: React.FC = () => {
         {/* Version info */}
         <div className="mt-8 mb-4 text-center">
           <p className="text-xs text-slate-400">
-            Version 0.1 · Development Build
+            Version 0.2 · Development Build
           </p>
         </div>
       </div>

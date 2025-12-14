@@ -121,10 +121,5 @@ npm run build    # Production build
 npm run preview  # Preview production build
 ```
 
-## Known Limitations
-- No backend/API - all data is static
-- Auth forms are UI-only (no actual authentication)
-- QR scanner is simulated (no camera access)
-- `types.ts` interfaces exist but aren't imported in most pages
 
 

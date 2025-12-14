@@ -70,13 +70,18 @@ router.get(
 
       const { targetType, targetId, limit = 20, offset = 0 } = req.query;
 
+      const normalizedTargetId =
+        typeof targetId === 'string' && mongoose.Types.ObjectId.isValid(targetId)
+          ? new mongoose.Types.ObjectId(targetId)
+          : targetId;
+
       const filter = {
         targetType,
-        targetId,
+        targetId: normalizedTargetId,
         status: 'published',
       };
 
-      const [reviews, total] = await Promise.all([
+      const [reviews, total, agg] = await Promise.all([
         Review.find(filter)
           .populate('userId', 'username avatar')
           .sort({ createdAt: -1 })
@@ -84,10 +89,25 @@ router.get(
           .limit(Number(limit))
           .lean(),
         Review.countDocuments(filter),
+        Review.aggregate([
+          { $match: filter },
+          {
+            $group: {
+              _id: null,
+              avgRating: { $avg: '$rating' },
+            },
+          },
+        ]),
       ]);
+
+      const averageRating = agg[0]?.avgRating || 0;
 
       res.json({
         reviews,
+        stats: {
+          averageRating: Math.round(averageRating * 10) / 10,
+          reviewCount: total,
+        },
         pagination: {
           total,
           limit: Number(limit),

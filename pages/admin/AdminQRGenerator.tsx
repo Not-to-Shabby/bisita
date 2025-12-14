@@ -9,10 +9,11 @@ import {
   MapPin, 
   Building2, 
   Calendar,
-  Check
+  Check,
+  Trophy
 } from 'lucide-react';
 import QRCode from "react-qr-code";
-import { attractionsApi, businessesApi, eventsApi, Attraction, Business, Event } from '../../services/api';
+import { attractionsApi, businessesApi, eventsApi, questsApi, Attraction, Business, Event, Quest } from '../../services/api';
 
 type ItemType = 'attraction' | 'business' | 'event';
 
@@ -31,8 +32,20 @@ const AdminQRGenerator: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
   const [customPayload, setCustomPayload] = useState('');
+  const [quests, setQuests] = useState<Quest[]>([]);
 
   const qrRef = useRef<HTMLDivElement>(null);
+
+  // Fetch quests on mount for cross-referencing
+  useEffect(() => {
+    const fetchQuests = async () => {
+      const res = await questsApi.getAllAdmin();
+      if (res.data?.quests) {
+        setQuests(res.data.quests);
+      }
+    };
+    fetchQuests();
+  }, []);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -97,6 +110,16 @@ const AdminQRGenerator: React.FC = () => {
   const handleSelectItem = (item: Item) => {
     setSelectedItem(item);
     setCustomPayload('');
+  };
+
+  // Find quests that are linked to the selected item
+  const getLinkedQuests = (itemId: string, itemType: ItemType): Quest[] => {
+    return quests.filter(quest => 
+      quest.tasks.some(task => 
+        task.locationId === itemId || 
+        task.qrCodeData === `${itemType.toUpperCase()}:${itemId}`
+      )
+    );
   };
 
   const handleCopyString = () => {
@@ -253,9 +276,36 @@ const AdminQRGenerator: React.FC = () => {
                   <h3 className="text-xl font-bold text-slate-900 text-center mb-1">
                     {selectedItem.name}
                   </h3>
-                  <p className="text-slate-500 text-sm uppercase tracking-wider font-bold mb-6">
+                  <p className="text-slate-500 text-sm uppercase tracking-wider font-bold mb-4">
                     {selectedItem.type}
                   </p>
+
+                  {/* Quest Link Indicator */}
+                  {(() => {
+                    const linkedQuests = getLinkedQuests(selectedItem.id, selectedItem.type);
+                    if (linkedQuests.length > 0) {
+                      return (
+                        <div className="w-full bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                          <div className="flex items-start gap-2">
+                            <Trophy size={18} className="text-amber-600 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-sm font-bold text-amber-800">Part of Quest</p>
+                              <ul className="text-xs text-amber-700 mt-1 space-y-0.5">
+                                {linkedQuests.map(q => (
+                                  <li key={q._id}>• {q.title}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4 text-center">
+                        <p className="text-sm text-slate-500">Not linked to any quest</p>
+                      </div>
+                    );
+                  })()}
 
                   <div className="w-full bg-gray-50 p-3 rounded-xl flex items-center justify-between border border-gray-200 mb-4">
                     <code className="text-xs text-slate-600 font-mono truncate flex-1 mr-2">

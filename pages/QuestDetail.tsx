@@ -9,75 +9,118 @@ import {
   QrCode, 
   Share2,
   Clock,
-  Award
+  Award,
+  Loader2
 } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
+import { questsApi, Quest, UserQuest } from '../services/api';
 
-// Mock Data for the Quest
-const QUEST_DATA = {
-  id: 'waterfall-chaser',
-  title: 'Waterfall Chaser',
-  description: 'Discover the majestic waterfalls of Iligan City. Visit all 3 featured falls to earn the "Master Explorer" badge and a 10% discount voucher at local souvenir shops.',
-  image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?q=80&w=2070&auto=format&fit=crop',
-  badgeImage: 'https://cdn-icons-png.flaticon.com/512/625/625393.png', // Placeholder badge
-  totalExp: 500,
-  tasks: [
-    {
-      id: 'task-1',
-      title: 'Visit Maria Cristina Falls',
-      description: 'Scan the QR code at the entrance of the nature park.',
-      location: 'Maria Cristina Falls',
-      isCompleted: true,
-      coordinates: { lat: 8.1833, lng: 124.1917 }
-    },
-    {
-      id: 'task-2',
-      title: 'Visit Tinago Falls',
-      description: 'Find the marker near the lagoon and scan it.',
-      location: 'Tinago Falls',
-      isCompleted: false,
-      coordinates: { lat: 8.1589, lng: 124.1844 }
-    },
-    {
-      id: 'task-3',
-      title: 'Visit Mimbalot Falls',
-      description: 'Check in at the Mimbalot Falls viewing deck.',
-      location: 'Mimbalot Falls',
-      isCompleted: false,
-      coordinates: { lat: 8.1750, lng: 124.1650 }
-    }
-  ],
-  rewards: [
-    'Master Explorer Badge',
-    '500 XP',
-    '10% Discount Voucher'
-  ]
-};
+interface TaskWithCompletion {
+  _id: string;
+  title: string;
+  description: string;
+  locationId?: string;
+  qrCodeData?: string;
+  isCompleted: boolean;
+}
 
 const QuestDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [quest, setQuest] = useState(QUEST_DATA);
+  const [quest, setQuest] = useState<Quest | null>(null);
+  const [userQuest, setUserQuest] = useState<UserQuest | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
-    // Simulate API fetch
-    setTimeout(() => {
+    const fetchQuest = async () => {
+      if (!id) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      const res = await questsApi.getById(id);
+      
+      if (res.error) {
+        setError(res.error);
+        setLoading(false);
+        return;
+      }
+      
+      if (res.data?.quest) {
+        setQuest(res.data.quest);
+        setUserQuest(res.data.userQuest || null);
+      }
+      
       setLoading(false);
-    }, 500);
+    };
+    
+    fetchQuest();
   }, [id]);
 
-  const completedTasks = quest.tasks.filter(t => t.isCompleted).length;
-  const totalTasks = quest.tasks.length;
-  const progress = (completedTasks / totalTasks) * 100;
+  const handleStartQuest = async () => {
+    if (!quest) return;
+    
+    setIsStarting(true);
+    const res = await questsApi.start(quest._id);
+    
+    if (res.data?.userQuest) {
+      setUserQuest(res.data.userQuest);
+    }
+    
+    setIsStarting(false);
+  };
+
+  // Map tasks with completion status from userQuest
+  const tasksWithCompletion: TaskWithCompletion[] = quest?.tasks.map(task => ({
+    ...task,
+    _id: task._id || '',
+    isCompleted: userQuest?.completedTaskIds.includes(task._id || '') || false,
+  })) || [];
+
+  const completedTasks = tasksWithCompletion.filter(t => t.isCompleted).length;
+  const totalTasks = tasksWithCompletion.length;
+  const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+  // Parse rewards from quest.reward string
+  const parseRewards = (rewardStr: string): string[] => {
+    // Try to split by common delimiters
+    if (rewardStr.includes(',')) {
+      return rewardStr.split(',').map(r => r.trim());
+    }
+    if (rewardStr.includes('+')) {
+      return rewardStr.split('+').map(r => r.trim());
+    }
+    return [rewardStr];
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600"></div>
+        <Loader2 className="w-12 h-12 animate-spin text-sky-600" />
       </div>
     );
   }
+
+  if (error || !quest) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <p className="text-slate-600 mb-4">{error || 'Quest not found'}</p>
+        <button
+          onClick={() => navigate(-1)}
+          className="px-4 py-2 bg-slate-900 text-white rounded-xl font-medium"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  const isLimitedTime = quest.startDate || quest.endDate;
+  const rewards = parseRewards(quest.reward);
+  const hasStarted = !!userQuest;
+  const isCompleted = userQuest?.status === 'completed';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -87,6 +130,7 @@ const QuestDetail: React.FC = () => {
           src={quest.image} 
           alt={quest.title} 
           className="w-full h-full object-cover"
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/800/400'; }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
         
@@ -94,23 +138,37 @@ const QuestDetail: React.FC = () => {
           <button 
             onClick={() => navigate(-1)} 
             className="bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/30 transition-colors"
+            aria-label="Go back"
+            tabIndex={0}
           >
             <ArrowLeft size={24} />
           </button>
-          <button className="bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/30 transition-colors">
+          <button 
+            className="bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/30 transition-colors"
+            aria-label="Share quest"
+            tabIndex={0}
+          >
             <Share2 size={24} />
           </button>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
           <div className="flex items-center gap-2 mb-2">
-            <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider">
-              Active Quest
+            <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
+              isCompleted 
+                ? 'bg-green-500 text-white' 
+                : hasStarted 
+                  ? 'bg-yellow-500 text-black' 
+                  : 'bg-sky-500 text-white'
+            }`}>
+              {isCompleted ? 'Completed' : hasStarted ? 'Active Quest' : 'Available Quest'}
             </span>
-            <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium">
-              <Clock size={12} />
-              <span>Limited Time</span>
-            </div>
+            {isLimitedTime && (
+              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium">
+                <Clock size={12} />
+                <span>Limited Time</span>
+              </div>
+            )}
           </div>
           <h1 className="text-3xl font-bold mb-2">{quest.title}</h1>
           <div className="flex items-center gap-4 text-sm text-gray-200">
@@ -144,6 +202,20 @@ const QuestDetail: React.FC = () => {
               style={{ width: `${progress}%` }}
             ></div>
           </div>
+          
+          {/* Start Quest Button */}
+          {!hasStarted && (
+            <button
+              onClick={handleStartQuest}
+              disabled={isStarting}
+              className="w-full mt-4 bg-sky-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-sky-700 transition-colors disabled:opacity-60"
+              aria-label="Start this quest"
+              tabIndex={0}
+            >
+              {isStarting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trophy size={20} />}
+              Start This Quest
+            </button>
+          )}
         </div>
 
         {/* Description */}
@@ -158,8 +230,8 @@ const QuestDetail: React.FC = () => {
         <div className="mb-8">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Your Mission</h2>
           <div className="space-y-6 relative before:absolute before:left-[19px] before:top-2 before:bottom-4 before:w-0.5 before:bg-gray-200">
-            {quest.tasks.map((task, index) => (
-              <div key={task.id} className="relative pl-12">
+            {tasksWithCompletion.map((task, index) => (
+              <div key={task._id || index} className="relative pl-12">
                 {/* Status Icon */}
                 <div className={`absolute left-0 top-0 w-10 h-10 rounded-full flex items-center justify-center border-4 border-gray-50 ${
                   task.isCompleted 
@@ -176,14 +248,20 @@ const QuestDetail: React.FC = () => {
                   </h3>
                   <p className="text-xs text-gray-500 mt-1 mb-3">{task.description}</p>
                   
-                  {!task.isCompleted && (
+                  {!task.isCompleted && hasStarted && (
                     <button 
-                      onClick={() => navigate('/scan-qr')}
+                      onClick={() => navigate('/scan')}
                       className="flex items-center gap-2 bg-sky-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors w-full justify-center"
+                      aria-label={`Scan to complete ${task.title}`}
+                      tabIndex={0}
                     >
                       <QrCode size={16} />
                       Scan to Complete
                     </button>
+                  )}
+                  
+                  {!task.isCompleted && !hasStarted && (
+                    <p className="text-xs text-slate-400 italic">Start the quest to begin this task</p>
                   )}
                   
                   {task.isCompleted && (
@@ -202,13 +280,26 @@ const QuestDetail: React.FC = () => {
         <div className="mb-8">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Rewards</h2>
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-2xl p-6 flex items-center gap-6">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-md shrink-0">
-              <Trophy size={40} className="text-amber-500" />
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+              {quest.badgeImage ? (
+                <img 
+                  src={quest.badgeImage} 
+                  alt="Badge" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <Trophy size={40} className="text-amber-500" />
+              )}
             </div>
             <div>
-              <h3 className="font-bold text-amber-900 text-lg">Master Explorer</h3>
+              <h3 className="font-bold text-amber-900 text-lg">{rewards[0] || 'Quest Reward'}</h3>
               <ul className="mt-2 space-y-1">
-                {quest.rewards.map((reward, i) => (
+                <li className="flex items-center gap-2 text-xs text-amber-800 font-medium">
+                  <Award size={12} />
+                  {quest.totalExp} XP
+                </li>
+                {rewards.slice(1).map((reward, i) => (
                   <li key={i} className="flex items-center gap-2 text-xs text-amber-800 font-medium">
                     <Award size={12} />
                     {reward}

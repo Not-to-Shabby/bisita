@@ -37,7 +37,7 @@ const fallbackGuide: Guide = {
     phone: '+63 912 345 6789',
     messenger: 'juan.delacruz',
   },
-  stats: { reviewCount: 45 },
+  stats: { reviewCount: 0 },
 };
 
 // ======================

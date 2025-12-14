@@ -97,6 +97,17 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [uploadedUrls, setUploadedUrls] = useState<string[]>(existingImages);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync with external changes
+  React.useEffect(() => {
+    setUploadedUrls(prev => {
+      // Simple shallow comparison to avoid unnecessary updates
+      if (prev.length === existingImages.length && prev.every((val, index) => val === existingImages[index])) {
+        return prev;
+      }
+      return existingImages;
+    });
+  }, [existingImages]);
+
   const updateFile = useCallback((id: string, updates: Partial<UploadingFile>) => {
     setUploadingFiles((prev) =>
       prev.map((f) => (f.id === id ? { ...f, ...updates } : f))
@@ -116,7 +127,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const removeUploadedImage = useCallback((url: string) => {
     setUploadedUrls((prev) => {
       const newUrls = prev.filter((u) => u !== url);
-      onUploadComplete(newUrls);
+      // Defer callback to avoid update during render
+      setTimeout(() => onUploadComplete(newUrls), 0);
       return newUrls;
     });
   }, [onUploadComplete]);
@@ -173,7 +185,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         // Add to uploaded URLs
         setUploadedUrls((prev) => {
           const newUrls = [...prev, result.data!.url];
-          onUploadComplete(newUrls);
+          // Defer callback to avoid update during render
+          setTimeout(() => onUploadComplete(newUrls), 0);
           return newUrls;
         });
 

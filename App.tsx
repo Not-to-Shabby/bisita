@@ -16,6 +16,7 @@ import GuidesPage from './pages/GuidesPage';
 import GuideDetail from './pages/GuideDetail';
 import MyBookings from './pages/MyBookings';
 import QuestDetail from './pages/QuestDetail';
+import EventDetail from './pages/EventDetail';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminAttractions from './pages/admin/AdminAttractions';
 import AdminBusinesses from './pages/admin/AdminBusinesses';
@@ -43,6 +44,7 @@ const App: React.FC = () => {
           <Route path="/guides" element={<GuidesPage />} />
           <Route path="/guide/:id" element={<GuideDetail />} />
           <Route path="/quest/:id" element={<QuestDetail />} />
+          <Route path="/event/:id" element={<EventDetail />} />
           
           {/* Protected routes - require authentication */}
           <Route

@@ -3,10 +3,16 @@ import Header from '../components/Header';
 import ImageUploader from '../components/ImageUploader';
 import { Star, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { reviewsApi, attractionsApi, businessesApi, Attraction, Business } from '../services/api';
+import { reviewsApi, attractionsApi, businessesApi, Attraction, Business, ReviewTargetType } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 type TargetType = 'Attraction' | 'Business' | 'Guide';
+
+const toApiTargetType = (type: TargetType): ReviewTargetType => {
+  if (type === 'Business') return 'business';
+  if (type === 'Guide') return 'guide';
+  return 'attraction';
+};
 
 interface ReviewTarget {
   id: string;
@@ -14,7 +20,8 @@ interface ReviewTarget {
   type: TargetType;
   coverImage?: string;
   stats?: {
-    averageRating: number;
+    averageRating?: number;
+    rating?: number;
     reviewCount: number;
   };
 }
@@ -50,6 +57,35 @@ const WriteReview: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
+  // Fetch live review stats (average + count) from DB
+  useEffect(() => {
+    const fetchReviewStats = async () => {
+      if (!target?.id) return;
+
+      try {
+        const response = await reviewsApi.getByTarget(toApiTargetType(target.type), target.id, { limit: 1, offset: 0 });
+        const stats = response.data?.stats;
+        if (!stats) return;
+
+        setTarget((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            stats: {
+              ...prev.stats,
+              averageRating: stats.averageRating,
+              reviewCount: stats.reviewCount,
+            },
+          };
+        });
+      } catch {
+        // non-blocking
+      }
+    };
+
+    fetchReviewStats();
+  }, [target?.id, target?.type]);
+
   // Fetch target details
   useEffect(() => {
     const fetchTarget = async () => {
@@ -64,12 +100,26 @@ const WriteReview: React.FC = () => {
           const response = await attractionsApi.getById(targetId);
           if (response.data?.attraction) {
             const attraction = response.data.attraction;
+            const averageRating =
+              attraction.stats?.averageRating ?? (attraction.stats as unknown as { rating?: number } | undefined)?.rating ?? 0;
+            const reviewCount = attraction.stats?.reviewCount ?? 0;
             setTarget({
               id: attraction._id,
               name: attraction.name,
               type: 'Attraction',
-              coverImage: attraction.coverImage,
+              coverImage: attraction.images?.[0]?.url || attraction.coverImage,
               stats: attraction.stats,
+            });
+
+            setTarget((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                stats: {
+                  averageRating,
+                  reviewCount,
+                },
+              };
             });
           } else {
             setError('Attraction not found');
@@ -78,12 +128,25 @@ const WriteReview: React.FC = () => {
           const response = await businessesApi.getById(targetId);
           if (response.data?.business) {
             const business = response.data.business;
+            const ratingValue = business.stats?.rating ?? 0;
+            const reviewCount = business.stats?.reviewCount ?? 0;
             setTarget({
               id: business._id,
               name: business.name,
               type: 'Business',
-              coverImage: business.coverImage,
+              coverImage: (business.images && business.images.length > 0 ? business.images[0] : undefined) || business.coverImage,
               stats: business.stats,
+            });
+
+            setTarget((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                stats: {
+                  rating: ratingValue,
+                  reviewCount,
+                },
+              };
             });
           } else {
             setError('Business not found');
@@ -118,14 +181,18 @@ const WriteReview: React.FC = () => {
     setError(null);
 
     try {
+      if (!target?.id) {
+        setError('No target specified for review');
+        return;
+      }
+
       const response = await reviewsApi.create({
-        targetId,
-        targetType,
+        targetId: target.id,
+        targetType: toApiTargetType(target.type),
         rating,
         title: title.trim(),
-        content: content.trim(),
-        photos,
-        visitDate: visitDate || undefined,
+        text: content.trim(),
+        images: photos,
       });
 
       if (response.error) {
@@ -235,10 +302,18 @@ const WriteReview: React.FC = () => {
         </div>
 
         {/* Current Rating Display */}
-        {target.stats && target.stats.reviewCount > 0 && (
+        {(() => {
+          const reviewCount = target.stats?.reviewCount ?? 0;
+          const ratingValue =
+            target.stats?.averageRating ?? target.stats?.rating ?? 0;
+          const safeRating = Number.isFinite(ratingValue) ? ratingValue : 0;
+
+          if (!target.stats || reviewCount <= 0) return null;
+
+          return (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center mb-6">
             <span className="text-4xl font-bold text-slate-900 mb-1">
-              {target.stats.averageRating.toFixed(1)}
+              {safeRating.toFixed(1)}
             </span>
             <div className="flex gap-1 mb-1">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -246,7 +321,7 @@ const WriteReview: React.FC = () => {
                   key={star}
                   size={16}
                   className={
-                    star <= Math.round(target.stats!.averageRating)
+                    star <= Math.round(safeRating)
                       ? 'text-amber-400 fill-amber-400'
                       : 'text-gray-200'
                   }
@@ -254,10 +329,11 @@ const WriteReview: React.FC = () => {
               ))}
             </div>
             <span className="text-xs text-slate-500">
-              Based on {target.stats.reviewCount} review{target.stats.reviewCount !== 1 ? 's' : ''}
+              Based on {reviewCount} review{reviewCount !== 1 ? 's' : ''}
             </span>
           </div>
-        )}
+          );
+        })()}
 
         {/* Error Message */}
         {error && (

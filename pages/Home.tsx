@@ -2,22 +2,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
-import { Search, Menu, MapPin, X, ChevronRight, Loader2, Compass, Bus, Trophy, Sun, CloudRain, Moon, Waves, Utensils, Landmark, Droplets, Camera, Trees, LayoutGrid, User, Calendar, Star, Building2, PlusCircle, TrendingUp, Scan } from 'lucide-react';
+import { Search, Menu, MapPin, X, ChevronRight, Loader2, Compass, Bus, Trophy, Sun, CloudRain, Moon, Waves, Utensils, Landmark, Droplets, Camera, Trees, LayoutGrid, User, Calendar, Star, Building2, PlusCircle, TrendingUp, Scan, Cloud, CloudLightning, CloudSun, CloudDrizzle } from 'lucide-react';
 import { getMedia, getMediaSafe } from '../data/mediaLibrary';
-import { attractionsApi, businessesApi, guidesApi, bookingsApi, eventsApi, Attraction, Guide, GuideBooking, Business, Event } from '../services/api';
+import { attractionsApi, businessesApi, guidesApi, bookingsApi, eventsApi, questsApi, Attraction, Guide, GuideBooking, Business, Event, Quest, UserQuest } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 // Static fallback data for offline support
 const staticSpots = [
-  { id: '1', name: 'Maria Cristina Falls', category: 'Waterfalls', location: 'Agus River', image: getMedia('mariaCristinaFalls'), rating: 4.8, transport: 'Jeepney (1C)' },
-  { id: '3', name: 'Tinago Falls', category: 'Waterfalls', location: 'Buru-un', image: getMedia('tinagoFalls'), rating: 4.9, transport: 'Jeepney + Habal' },
-  { id: '2', name: 'Paseo de Santiago', category: 'Attractions', location: 'Santiago', image: getMedia('paseoDeSantiago'), rating: 4.5, transport: 'Jeepney (1A)' },
-  { id: '4', name: 'Mimbalot Falls', category: 'Waterfalls', location: 'Buru-un', image: getMedia('mimbalotFalls'), rating: 4.4, transport: 'Jeepney + Walk' },
-  { id: '6', name: 'Macaraeg-Macapagal House', category: 'Heritage', location: 'Timoga, Buru-un', image: getMedia('macaraegHouse'), rating: 4.7, transport: 'Jeepney (1C)' },
-  { id: '101', name: "Cheding's Peanuts", category: 'Local Eats', location: "Quezon Ave.", image: getMedia('chedingsPeanuts'), rating: 4.9, transport: 'Tricycle' },
-  { id: '102', name: "Tita Fannies", category: 'Local Eats', location: "Zamora St.", type: "Halang-Halang", image: getMedia('titaFannies'), rating: 4.6, transport: 'Tricycle' }, 
-  { id: '103', name: "Timoga Lechon", category: 'Local Eats', location: "Timoga", type: "Crispy Lechon", image: getMedia('timogaLechon'), rating: 4.5, transport: 'Jeepney (1C)' },
-  { id: '201', name: "Timoga Cold Springs", category: 'Cold Springs', location: "Timoga", image: getMedia('timogaSprings'), rating: 4.6, transport: 'Jeepney (1C)' }
+  { id: '1', name: 'Maria Cristina Falls', category: 'Waterfall', location: 'Agus River', image: getMedia('mariaCristinaFalls'), rating: 0, transport: 'Jeepney (1C)' },
+  { id: '3', name: 'Tinago Falls', category: 'Waterfall', location: 'Buru-un', image: getMedia('tinagoFalls'), rating: 0, transport: 'Jeepney + Habal' },
+  { id: '2', name: 'Paseo de Santiago', category: 'Attraction', location: 'Santiago', image: getMedia('paseoDeSantiago'), rating: 0, transport: 'Jeepney (1A)' },
+  { id: '4', name: 'Mimbalot Falls', category: 'Waterfall', location: 'Buru-un', image: getMedia('mimbalotFalls'), rating: 0, transport: 'Jeepney + Walk' },
+  { id: '6', name: 'Macaraeg-Macapagal House', category: 'Heritage', location: 'Timoga, Buru-un', image: getMedia('macaraegHouse'), rating: 0, transport: 'Jeepney (1C)' },
+  { id: '101', name: "Cheding's Peanuts", category: 'Local Eats', location: "Quezon Ave.", image: getMedia('chedingsPeanuts'), rating: 0, transport: 'Tricycle' },
+  { id: '102', name: "Tita Fannies", category: 'Local Eats', location: "Zamora St.", type: "Halang-Halang", image: getMedia('titaFannies'), rating: 0, transport: 'Tricycle' }, 
+  { id: '103', name: "Timoga Lechon", category: 'Local Eats', location: "Timoga", type: "Crispy Lechon", image: getMedia('timogaLechon'), rating: 0, transport: 'Jeepney (1C)' },
+  { id: '201', name: "Timoga Cold Springs", category: 'Cold Springs', location: "Timoga", image: getMedia('timogaSprings'), rating: 0, transport: 'Jeepney (1C)' }
 ];
 
 interface SpotItem {
@@ -33,6 +33,12 @@ interface SpotItem {
   isVerified?: boolean;
 }
 
+interface WeatherData {
+  temperature: number;
+  weathercode: number;
+  is_day: number;
+}
+
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
@@ -43,10 +49,35 @@ const Home: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [greeting, setGreeting] = useState('');
+  const [weather, setWeather] = useState<WeatherData | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [myBookings, setMyBookings] = useState<GuideBooking[]>([]);
   const [myBusinesses, setMyBusinesses] = useState<Business[]>([]);
+  const [activeQuest, setActiveQuest] = useState<Quest | null>(null);
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [allUserQuests, setAllUserQuests] = useState<UserQuest[]>([]);
+  const [userQuestProgress, setUserQuestProgress] = useState<UserQuest | null>(null);
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
+  const [currentQuestIndex, setCurrentQuestIndex] = useState(0);
+
+  // Auto-rotate events
+  useEffect(() => {
+    if (events.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentEventIndex(prev => (prev + 1) % events.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [events.length]);
+
+  // Auto-rotate quests
+  useEffect(() => {
+    if (quests.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentQuestIndex(prev => (prev + 1) % quests.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [quests.length]);
 
   // Time-based greeting logic
   useEffect(() => {
@@ -70,18 +101,37 @@ const Home: React.FC = () => {
     };
   }, []);
 
+  // Fetch Weather for Iligan City
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        // Iligan City Coordinates: 8.2280° N, 124.2452° E
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=8.2280&longitude=124.2452&current_weather=true');
+        const data = await res.json();
+        if (data.current_weather) {
+          setWeather(data.current_weather);
+        }
+      } catch (e) {
+        console.error('Failed to fetch weather', e);
+      }
+    };
+    
+    if (isOnline) fetchWeather();
+  }, [isOnline]);
+
   // Fetch attractions from API
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       
       try {
-        const [attractionsRes, businessesRes, featuredBusinessesRes, guidesRes, eventsRes] = await Promise.all([
+        const [attractionsRes, businessesRes, featuredBusinessesRes, guidesRes, eventsRes, questsRes] = await Promise.all([
           attractionsApi.getAll(),
           businessesApi.getAll({ limit: 50 }),
           businessesApi.getAll({ featured: true }),
           guidesApi.getAll({ verified: true }),
-          eventsApi.getAll(true)
+          eventsApi.getAll(true),
+          questsApi.getAll()
         ]);
 
         if (eventsRes.data?.events) {
@@ -92,6 +142,13 @@ const Home: React.FC = () => {
           setGuides(guidesRes.data.guides);
         }
 
+        // Set active quest (first active quest from API)
+        if (questsRes.data?.quests && questsRes.data.quests.length > 0) {
+          setQuests(questsRes.data.quests);
+          const firstQuest = questsRes.data.quests[0];
+          setActiveQuest({ ...firstQuest, tasks: firstQuest.tasks || [] });
+        }
+
         const apiSpots: SpotItem[] = [];
         const processedIds = new Set<string>();
 
@@ -100,13 +157,17 @@ const Home: React.FC = () => {
           attractionsRes.data.attractions.forEach((attraction: Attraction) => {
             const id = attraction.legacyId || attraction._id;
             if (!processedIds.has(id)) {
+              const primaryImage = (attraction.images && attraction.images.length > 0)
+                ? attraction.images[0].url
+                : attraction.coverImage || getMediaSafe(attraction.legacyId || '');
+
               apiSpots.push({
                 id,
                 name: attraction.name,
-                category: attraction.category,
+                category: attraction.category ? attraction.category.charAt(0).toUpperCase() + attraction.category.slice(1) : 'Attraction',
                 location: attraction.location.barangay || attraction.location.address,
-                image: attraction.coverImage || getMediaSafe(attraction.legacyId || ''),
-                rating: attraction.stats.averageRating || 4.5,
+                image: primaryImage,
+                rating: attraction.stats.rating || 0,
                 transport: 'Jeepney Available', // Placeholder for API data
                 isFeatured: attraction.isFeatured
               });
@@ -169,7 +230,7 @@ const Home: React.FC = () => {
     }
   }, [isOnline]);
 
-  // Fetch user bookings
+  // Fetch user bookings and quest progress
   useEffect(() => {
     if (isAuthenticated && isOnline) {
       // Fetch bookings
@@ -191,8 +252,27 @@ const Home: React.FC = () => {
           }
         });
       }
+
+      // Fetch user quest progress
+      questsApi.getMyProgress().then(res => {
+        if (res.data?.userQuests && res.data.userQuests.length > 0) {
+          setAllUserQuests(res.data.userQuests);
+          // Find progress for active quest
+          if (activeQuest) {
+            const progress = res.data.userQuests.find(uq => 
+              (typeof uq.questId === 'string' ? uq.questId : uq.questId._id) === activeQuest._id
+            );
+            if (progress) {
+              setUserQuestProgress(progress);
+            }
+          } else {
+            // If no active quest set yet, use the first user quest
+            setUserQuestProgress(res.data.userQuests[0]);
+          }
+        }
+      });
     }
-  }, [isAuthenticated, isOnline, user?.role]);
+  }, [isAuthenticated, isOnline, user?.role, activeQuest]);
 
   const categories = useMemo(() => {
     const uniqueCategories = new Set(spots.map(s => s.category).filter(Boolean));
@@ -225,6 +305,10 @@ const Home: React.FC = () => {
   // Filter Logic
   const filteredSpots = useMemo(() => {
     return spots.filter(item => {
+      if (activeCategory === 'Featured') {
+        return item.isFeatured && (item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            item.location.toLowerCase().includes(searchQuery.toLowerCase()));
+      }
       const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             item.location.toLowerCase().includes(searchQuery.toLowerCase());
@@ -276,18 +360,8 @@ const Home: React.FC = () => {
 
   // Featured spots for carousel
   const featuredSpots = useMemo(() => {
-    // Prioritize database "isFeatured" flag and verified high-rated businesses
-    return spots.filter(i => 
-      i.isFeatured || 
-      (i.isVerified && i.rating >= 4.5) ||
-      ['1', '3', '101', '102'].includes(i.id) // Fallback for static data
-    ).sort((a, b) => {
-      // Featured items always come first
-      if (a.isFeatured && !b.isFeatured) return -1;
-      if (!a.isFeatured && b.isFeatured) return 1;
-      // Then sort by rating
-      return b.rating - a.rating;
-    }).slice(0, 6);
+    // Only show items explicitly marked as featured
+    return spots.filter(i => i.isFeatured).slice(0, 6);
   }, [spots]);
 
   // Easy Commute Spots (Simulated logic)
@@ -299,6 +373,27 @@ const Home: React.FC = () => {
   const localEats = useMemo(() => {
     return spots.filter(i => i.category === 'Local Eats');
   }, [spots]);
+
+  const getWeatherIcon = (code: number) => {
+    // WMO Weather interpretation codes (WW)
+    if (code === 0) return <Sun size={14} className="text-orange-500" />;
+    if (code >= 1 && code <= 3) return <CloudSun size={14} className="text-orange-400" />;
+    if (code >= 45 && code <= 48) return <Cloud size={14} className="text-gray-400" />;
+    if (code >= 51 && code <= 55) return <CloudDrizzle size={14} className="text-blue-400" />;
+    if (code >= 61 && code <= 82) return <CloudRain size={14} className="text-blue-500" />;
+    if (code >= 95) return <CloudLightning size={14} className="text-purple-500" />;
+    return <Sun size={14} className="text-orange-500" />;
+  };
+
+  const getWeatherDescription = (code: number) => {
+    if (code === 0) return "It's a sunny day in Iligan!";
+    if (code >= 1 && code <= 3) return "It's a cloudy day in Iligan";
+    if (code >= 45 && code <= 48) return "It's a foggy day in Iligan";
+    if (code >= 51 && code <= 55) return "It's a drizzly day in Iligan";
+    if (code >= 61 && code <= 82) return "It's a rainy day in Iligan";
+    if (code >= 95) return "It's a stormy day in Iligan";
+    return "It's a beautiful day in Iligan!";
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -314,8 +409,17 @@ const Home: React.FC = () => {
         <div className="flex justify-between items-start mb-6">
           <div>
             <div className="flex items-center gap-2 text-slate-500 text-sm mb-1">
-              <Sun size={14} className="text-orange-500" />
-              <span>It's a sunny day in Iligan!</span>
+              {weather ? (
+                <>
+                  {getWeatherIcon(weather.weathercode)}
+                  <span>{getWeatherDescription(weather.weathercode)} ({weather.temperature}°C)</span>
+                </>
+              ) : (
+                <>
+                  <Sun size={14} className="text-orange-500" />
+                  <span>It's a sunny day in Iligan!</span>
+                </>
+              )}
             </div>
             <h1 className="text-2xl font-bold text-slate-900 leading-tight">
               {greeting}, <br />
@@ -379,7 +483,7 @@ const Home: React.FC = () => {
                   aria-label={`Go to ${item.name}`}
                 >
                   <img 
-                    src={item.image} 
+                    src={item.image || undefined} 
                     alt={item.name} 
                     className="w-10 h-10 rounded-lg object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/80/80?travel'; }}
@@ -530,7 +634,7 @@ const Home: React.FC = () => {
                     style={{ animationDelay: `${index * 60}ms` }}
                   >
                     <img 
-                      src={item.image} 
+                      src={item.image || undefined} 
                       alt={item.name} 
                       className="w-24 h-24 rounded-xl object-cover"
                       onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/120/120?travel'; }}
@@ -542,7 +646,11 @@ const Home: React.FC = () => {
                         {item.location}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded">{item.rating} ★</span>
+                        {item.rating > 0 ? (
+                          <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded">{item.rating.toFixed(1)} ★</span>
+                        ) : (
+                          <span className="text-xs font-bold bg-gray-100 text-slate-600 px-2 py-0.5 rounded">New</span>
+                        )}
                         {item.transport && (
                           <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded flex items-center gap-1">
                             <Bus size={10} /> {item.transport}
@@ -573,182 +681,372 @@ const Home: React.FC = () => {
           /* Default Dashboard View */
           <div className="space-y-8 animate-fade-slide-up">
             
-            <div className={`gap-3 md:gap-4 ${events.length > 0 ? 'grid grid-cols-2' : 'block'}`}>
-              {/* Quest / Gamification Card */}
-              <div className={`bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-3 md:p-5 text-white shadow-lg shadow-indigo-200 relative overflow-hidden group cursor-pointer ${events.length === 0 ? 'w-full' : ''}`} onClick={() => navigate('/quest/waterfall-chaser')}>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                <div className="relative z-10">
-                  <div className="flex flex-col md:flex-row justify-between items-start mb-2 md:mb-4">
-                    <div>
-                      <span className="text-[10px] md:text-xs font-bold bg-white/20 px-2 py-1 rounded-lg uppercase tracking-wider">Active Quest</span>
-                      <h3 className="text-sm md:text-xl font-bold mt-2">Waterfall Chaser</h3>
-                      <p className="text-indigo-100 text-[10px] md:text-sm line-clamp-1 md:line-clamp-none">Visit 3 waterfalls to earn badge!</p>
-                    </div>
-                    <div className="w-8 h-8 md:w-12 md:h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm absolute top-3 right-3 md:relative md:top-0 md:right-0">
-                      <Trophy size={16} className="text-yellow-300 md:w-6 md:h-6" />
-                    </div>
-                  </div>
-                  
-                  {/* Progress Bar */}
-                  <div className="space-y-1 md:space-y-2 mt-2">
-                    <div className="flex justify-between text-[10px] md:text-xs font-medium text-indigo-100">
-                      <span>1/3 Visited</span>
-                      <span>33%</span>
-                    </div>
-                    <div className="h-1.5 md:h-2 bg-black/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-yellow-400 w-1/3 rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className={`gap-3 md:gap-4 ${events.length > 0 || quests.length > 0 ? 'grid grid-cols-2' : 'block'}`}>
+              {/* Quest / Gamification Carousel */}
+              {quests.length > 0 && (
+                <div className={`relative h-full min-h-[240px] group/quests perspective-1000 ${!events.length ? 'col-span-2' : ''}`}>
+                  {quests.map((quest, index) => {
+                    const position = (index - currentQuestIndex + quests.length) % quests.length;
+                    const isActive = position === 0;
+                    const isNext = position === 1;
+                    const isNextNext = position === 2;
+                    
+                    // Only render top 3 cards
+                    if (position > 2 && position !== quests.length - 1) return null;
 
-              {/* Event Banner */}
-              {events.length > 0 && (
-                <div 
-                  className="rounded-3xl p-3 md:p-6 flex flex-col justify-between animate-fade-slide-up motion-delay-300 relative overflow-hidden h-full border border-gray-100 shadow-sm"
-                  style={{
-                    background: events[0].style === 'bold' && events[0].gradientFrom && events[0].gradientTo
-                      ? `linear-gradient(135deg, ${events[0].gradientFrom}, ${events[0].gradientTo})`
-                      : events[0].backgroundColor || '#fff7ed',
-                    color: events[0].textColor || '#0f172a'
-                  }}
-                >
-                  {events[0].image && (
-                    <div className={`absolute inset-0 z-0`} style={{ opacity: events[0].overlayOpacity ? events[0].overlayOpacity / 100 : (events[0].style === 'image' ? 0.8 : 0.1) }}>
-                      <img src={events[0].image} alt="" className="w-full h-full object-cover" />
+                    let zIndex = 0;
+                    let scale = 0.9;
+                    let opacity = 0;
+                    let translateY = 0;
+                    let translateX = 0;
+
+                    if (isActive) {
+                      zIndex = 30;
+                      scale = 1;
+                      opacity = 1;
+                    } else if (isNext) {
+                      zIndex = 20;
+                      scale = 0.96;
+                      opacity = 1;
+                      translateY = 8;
+                      translateX = 8;
+                    } else if (isNextNext) {
+                      zIndex = 10;
+                      scale = 0.92;
+                      opacity = 0.8;
+                      translateY = 16;
+                      translateX = 16;
+                    } else if (position === quests.length - 1) {
+                      zIndex = 0;
+                      scale = 1.05;
+                      opacity = 0;
+                    }
+
+                    // Find progress for this specific quest
+                    const questProgress = allUserQuests.find(uq => 
+                      (typeof uq.questId === 'string' ? uq.questId : uq.questId._id) === quest._id
+                    );
+                    
+                    const totalTasks = quest.tasks?.length ?? 0;
+                    const completedTasks = questProgress?.completedTaskIds?.length ?? 0;
+                    const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+                    return (
+                      <div 
+                        key={quest._id}
+                        className={`absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-500 rounded-[2rem] p-5 text-white shadow-sm border border-white/15 overflow-hidden cursor-pointer flex flex-col justify-between transition-all duration-500 ease-out ${isActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                        style={{
+                          zIndex,
+                          opacity,
+                          transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`,
+                        }}
+                        onClick={() => quest._id && navigate(`/quest/${quest._id}`)}
+                        role="button"
+                        tabIndex={isActive ? 0 : -1}
+                        aria-hidden={!isActive}
+                      >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                        <div className="relative z-10 h-full flex flex-col">
+                          <div className="flex justify-between items-start mb-4">
+                            <span className="text-[10px] font-bold bg-white/20 px-3 py-1 rounded-full uppercase tracking-wider">
+                              {progressPercent === 100 ? 'Completed' : progressPercent > 0 ? 'Active Quest' : 'New Quest'}
+                            </span>
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner border border-white/10">
+                              {quest.badgeImage ? (
+                                <img src={quest.badgeImage} alt="Badge" className="w-10 h-10 object-contain drop-shadow-sm" />
+                              ) : (
+                                <Trophy size={32} className="text-yellow-300 drop-shadow-sm" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="mb-auto">
+                            <h3 className="text-xl font-bold mt-2 leading-tight">{quest.title}</h3>
+                            <p className="text-indigo-100 text-sm mt-1 line-clamp-2">{quest.description}</p>
+                          </div>
+                          
+                          <div className="space-y-2 mt-4">
+                            <div className="flex justify-between text-xs font-bold text-white">
+                              <span>{completedTasks}/{totalTasks} Visited</span>
+                              <span>{progressPercent}%</span>
+                            </div>
+                            <div className="h-2.5 bg-black/20 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-yellow-400 rounded-full shadow-[0_0_10px_rgba(250,204,21,0.5)] transition-all duration-500"
+                                style={{ width: `${progressPercent}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Manual Navigation Overlay */}
+                  {quests.length > 1 && (
+                    <div className="absolute inset-x-0 bottom-0 h-16 z-40 flex justify-end items-end p-4 opacity-0 group-hover/quests:opacity-100 transition-opacity pointer-events-none">
+                      <div className="flex gap-2 pointer-events-auto">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setCurrentQuestIndex(prev => (prev - 1 + quests.length) % quests.length); }}
+                          className="p-2 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/40 text-white shadow-sm transition-colors"
+                          aria-label="Previous quest"
+                        >
+                          <ChevronRight size={16} className="rotate-180" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setCurrentQuestIndex(prev => (prev + 1) % quests.length); }}
+                          className="p-2 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/40 text-white shadow-sm transition-colors"
+                          aria-label="Next quest"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
                     </div>
                   )}
-                  
-                  {/* Decorative Blob */}
-                  <div 
-                    className="absolute -right-10 -top-10 w-40 h-40 rounded-full blur-3xl opacity-20"
-                    style={{ backgroundColor: events[0].accentColor || '#f97316' }}
-                  ></div>
+                </div>
+              )}
 
-                  <div className="relative z-10 w-full">
-                    <span 
-                      className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md mb-2 inline-flex items-center gap-1"
-                      style={{ 
-                        backgroundColor: events[0].style === 'bold' ? 'rgba(255,255,255,0.2)' : `${events[0].accentColor}20`,
-                        color: events[0].style === 'bold' ? '#ffffff' : events[0].accentColor
-                      }}
-                    >
-                      {events[0].badgeEmoji || '🎉'} {events[0].badgeText || 'Upcoming'}
-                    </span>
-                    <h3 className="font-bold text-sm md:text-lg mb-1 line-clamp-1" style={{ color: events[0].textColor }}>{events[0].title}</h3>
-                    <p className="text-[10px] md:text-sm mb-2 line-clamp-2 opacity-80" style={{ color: events[0].textColor }}>{events[0].description}</p>
-                    {events[0].link && (
-                      <a 
-                        href={events[0].link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[10px] md:text-xs font-bold px-3 py-1.5 md:px-4 md:py-2 rounded-xl shadow-sm transition-opacity hover:opacity-90 inline-block"
+              {/* Event Stack Carousel */}
+              {events.length > 0 && (
+                <div className={`relative h-full min-h-[240px] group/events perspective-1000 ${!quests.length ? 'col-span-2' : ''}`}>
+                  {events.map((evt, index) => {
+                    const position = (index - currentEventIndex + events.length) % events.length;
+                    const isActive = position === 0;
+                    const isNext = position === 1;
+                    const isNextNext = position === 2;
+                    
+                    // Only render top 3 cards for performance and visual clarity
+                    if (position > 2 && position !== events.length - 1) return null;
+
+                    let zIndex = 0;
+                    let scale = 0.9;
+                    let opacity = 0;
+                    let translateY = 0;
+                    let translateX = 0;
+
+                    if (isActive) {
+                      zIndex = 30;
+                      scale = 1;
+                      opacity = 1;
+                    } else if (isNext) {
+                      zIndex = 20;
+                      scale = 0.96;
+                      opacity = 1;
+                      translateY = 8;
+                      translateX = 8;
+                    } else if (isNextNext) {
+                      zIndex = 10;
+                      scale = 0.92;
+                      opacity = 0.8;
+                      translateY = 16;
+                      translateX = 16;
+                    } else if (position === events.length - 1) {
+                      // Previous card fading out
+                      zIndex = 0;
+                      scale = 1.05;
+                      opacity = 0;
+                    }
+
+                    // Adaptive text color logic
+                    const isImage = !!evt.image;
+                    const isBold = evt.style === 'bold';
+                    // Force white text if image or bold style is present to ensure readability
+                    const textColor = (isImage || isBold) ? '#ffffff' : (evt.textColor || '#0f172a');
+                    const badgeBg = isImage || isBold ? 'rgba(255,255,255,0.2)' : `${evt.accentColor}20`;
+                    const badgeText = isImage || isBold ? '#ffffff' : evt.accentColor;
+
+                    return (
+                      <div
+                        key={evt._id}
+                        className={`absolute inset-0 rounded-[2rem] p-5 flex flex-col justify-between border border-gray-100 shadow-sm cursor-pointer transition-all duration-500 ease-out ${isActive ? 'pointer-events-auto' : 'pointer-events-none'}`}
                         style={{
-                          backgroundColor: events[0].style === 'bold' ? '#ffffff' : events[0].accentColor,
-                          color: events[0].style === 'bold' ? events[0].accentColor : '#ffffff'
+                          background: evt.style === 'bold' && evt.gradientFrom && evt.gradientTo
+                            ? `linear-gradient(135deg, ${evt.gradientFrom}, ${evt.gradientTo})`
+                            : evt.backgroundColor || '#fff7ed',
+                          color: textColor,
+                          zIndex,
+                          opacity,
+                          transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`,
                         }}
+                        onClick={() => navigate(`/event/${evt._id}`)}
+                        role="button"
+                        tabIndex={isActive ? 0 : -1}
+                        aria-hidden={!isActive}
                       >
-                        {events[0].ctaLabel || 'View'}
-                      </a>
-                    )}
-                  </div>
-                  <div 
-                    className="text-3xl md:text-5xl animate-float-pulse absolute bottom-2 right-2 md:relative md:bottom-auto md:right-auto z-0 opacity-50"
-                  >
-                    {events[0].badgeEmoji || '🎉'}
-                  </div>
+                        {evt.image && (
+                          <div className="absolute inset-0 z-0">
+                            <img src={evt.image} alt="" className="w-full h-full object-cover rounded-[2rem]" />
+                            <div className="absolute inset-0 bg-black/40 rounded-[2rem]" />
+                          </div>
+                        )}
+                        
+                        <div 
+                          className="absolute -right-10 -top-10 w-40 h-40 rounded-full blur-3xl opacity-20"
+                          style={{ backgroundColor: evt.accentColor || '#f97316' }}
+                        ></div>
+
+                        <div className="relative z-10 w-full h-full flex flex-col items-start">
+                          <div className="flex justify-between items-start w-full mb-auto">
+                            <span 
+                              className="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full inline-flex items-center gap-1 backdrop-blur-sm"
+                              style={{ 
+                                backgroundColor: badgeBg,
+                                color: badgeText
+                              }}
+                            >
+                              {evt.badgeEmoji || '🎉'} {evt.badgeText || 'Upcoming'}
+                            </span>
+                            {events.length > 1 && (
+                              <div className="flex gap-1">
+                                {events.map((_, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className={`w-1.5 h-1.5 rounded-full transition-colors ${idx === currentEventIndex ? 'bg-current opacity-100' : 'bg-current opacity-30'}`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="w-full mt-8">
+                            <h3 className="font-bold text-xl mb-1 line-clamp-2 leading-tight drop-shadow-md" style={{ color: 'inherit' }}>{evt.title}</h3>
+                            <p className="text-sm line-clamp-2 opacity-90 drop-shadow-sm" style={{ color: 'inherit' }}>{evt.description}</p>
+                          </div>
+                        </div>
+                        
+                        <div 
+                          className="text-4xl animate-bounce absolute bottom-4 right-4 z-0 opacity-90"
+                          style={{ animationDuration: '3s' }}
+                        >
+                          {evt.badgeEmoji || '🎉'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Manual Navigation Overlay */}
+                  {events.length > 1 && (
+                    <div className="absolute inset-x-0 bottom-0 h-16 z-40 flex justify-end items-end p-4 opacity-0 group-hover/events:opacity-100 transition-opacity pointer-events-none">
+                      <div className="flex gap-2 pointer-events-auto">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setCurrentEventIndex(prev => (prev - 1 + events.length) % events.length); }}
+                          className="p-2 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/40 text-slate-800 shadow-sm transition-colors"
+                          aria-label="Previous event"
+                        >
+                          <ChevronRight size={16} className="rotate-180" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setCurrentEventIndex(prev => (prev + 1) % events.length); }}
+                          className="p-2 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/40 text-slate-800 shadow-sm transition-colors"
+                          aria-label="Next event"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Featured Section */}
-            <div>
-              <div className="flex justify-between items-end mb-4">
-                <h2 className="text-xl font-bold text-slate-900">Don't Miss These</h2>
-                <button
-                  type="button"
-                  className="text-xs font-bold text-sky-600 hover:underline"
-                  onClick={() => setActiveCategory('Waterfalls')}
-                >
-                  See All
-                </button>
-              </div>
-              
-              <div className="overflow-hidden relative w-full">
-                <div className="flex gap-4 w-max animate-infinite-scroll pause-on-hover">
-                  {/* Original items */}
-                  {featuredSpots.map((item, index) => (
-                    <div
-                      key={item.id}
-                      onClick={() => handleSpotClick(item.id)}
-                      onKeyDown={(e) => handleSpotKeyDown(e, item.id)}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`View ${item.name}`}
-                      className="min-w-[280px] bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
-                    >
-                      <div className="h-48 bg-gray-200 relative overflow-hidden">
-                        <img 
-                          src={item.image} 
-                          alt={item.name} 
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2';
-                          }} 
-                        />
-                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm">
-                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
-                            <span className="text-orange-500">★</span> {item.rating}
-                          </span>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-12">
-                          <h3 className="font-bold text-xl text-white leading-tight">{item.name}</h3>
-                          <div className="flex items-center gap-1 text-white/80 text-xs mt-1">
-                            <MapPin size={12} />
-                            {item.location}
+            {featuredSpots.length > 0 && (
+              <div>
+                <div className="flex justify-between items-end mb-4">
+                  <h2 className="text-xl font-bold text-slate-900">Don't Miss These</h2>
+                  <button
+                    type="button"
+                    className="text-xs font-bold text-sky-600 hover:underline"
+                    onClick={() => setActiveCategory('Featured')}
+                  >
+                    See All
+                  </button>
+                </div>
+                
+                <div className="overflow-hidden relative w-full">
+                  <div className="flex gap-4 w-max animate-infinite-scroll pause-on-hover">
+                    {/* Original items */}
+                    {featuredSpots.map((item, index) => (
+                      <div
+                        key={item.id}
+                        onClick={() => handleSpotClick(item.id)}
+                        onKeyDown={(e) => handleSpotKeyDown(e, item.id)}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View ${item.name}`}
+                        className="min-w-[280px] bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                      >
+                        <div className="h-48 bg-gray-200 relative overflow-hidden">
+                          <img 
+                            src={item.image || undefined} 
+                            alt={item.name} 
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2';
+                            }} 
+                          />
+                          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm">
+                            {item.rating > 0 ? (
+                              <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                <span className="text-orange-500">★</span> {item.rating.toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-600">New</span>
+                            )}
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-12">
+                            <h3 className="font-bold text-xl text-white leading-tight">{item.name}</h3>
+                            <div className="flex items-center gap-1 text-white/80 text-xs mt-1">
+                              <MapPin size={12} />
+                              {item.location}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  {/* Duplicate items for infinite scroll */}
-                  {featuredSpots.map((item, index) => (
-                    <div
-                      key={`${item.id}-dup`}
-                      onClick={() => handleSpotClick(item.id)}
-                      onKeyDown={(e) => handleSpotKeyDown(e, item.id)}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`View ${item.name}`}
-                      className="min-w-[280px] bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
-                    >
-                      <div className="h-48 bg-gray-200 relative overflow-hidden">
-                        <img 
-                          src={item.image} 
-                          alt={item.name} 
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2';
-                          }} 
-                        />
-                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm">
-                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
-                            <span className="text-orange-500">★</span> {item.rating}
-                          </span>
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-12">
-                          <h3 className="font-bold text-xl text-white leading-tight">{item.name}</h3>
-                          <div className="flex items-center gap-1 text-white/80 text-xs mt-1">
-                            <MapPin size={12} />
-                            {item.location}
+                    ))}
+                    {/* Duplicate items for infinite scroll */}
+                    {featuredSpots.map((item, index) => (
+                      <div
+                        key={`${item.id}-dup`}
+                        onClick={() => handleSpotClick(item.id)}
+                        onKeyDown={(e) => handleSpotKeyDown(e, item.id)}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View ${item.name}`}
+                        className="min-w-[280px] bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer group"
+                      >
+                        <div className="h-48 bg-gray-200 relative overflow-hidden">
+                          <img 
+                            src={item.image || undefined} 
+                            alt={item.name} 
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?blur=2';
+                            }} 
+                          />
+                          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm">
+                            {item.rating > 0 ? (
+                              <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                <span className="text-orange-500">★</span> {item.rating.toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-600">New</span>
+                            )}
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-12">
+                            <h3 className="font-bold text-xl text-white leading-tight">{item.name}</h3>
+                            <div className="flex items-center gap-1 text-white/80 text-xs mt-1">
+                              <MapPin size={12} />
+                              {item.location}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Meet Local Guides */}
             {guides.length > 0 && (
@@ -850,7 +1148,7 @@ const Home: React.FC = () => {
                     className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer"
                   >
                     <div className="h-24 rounded-xl bg-gray-100 mb-3 overflow-hidden">
-                      <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                      <img src={item.image || undefined} className="w-full h-full object-cover" alt={item.name} />
                     </div>
                     <h3 className="font-bold text-sm text-slate-900 truncate">{item.name}</h3>
                     <p className="text-[10px] text-slate-500 mb-2 truncate">{item.location}</p>
@@ -883,7 +1181,7 @@ const Home: React.FC = () => {
                       >
                         <div className="h-32 bg-gray-200 relative">
                           <img 
-                            src={food.image} 
+                            src={food.image || undefined} 
                             className="w-full h-full object-cover" 
                             alt={food.name}
                             onError={(e) => {
@@ -891,7 +1189,7 @@ const Home: React.FC = () => {
                             }}
                           />
                           <div className="absolute top-2 right-2 bg-white/90 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-800">
-                            {food.rating} ★
+                            {food.rating > 0 ? `${food.rating.toFixed(1)} ★` : 'New'}
                           </div>
                         </div>
                         <div className="p-3">
@@ -917,7 +1215,7 @@ const Home: React.FC = () => {
                       >
                         <div className="h-32 bg-gray-200 relative">
                           <img 
-                            src={food.image} 
+                            src={food.image || undefined} 
                             className="w-full h-full object-cover" 
                             alt={food.name}
                             onError={(e) => {
@@ -925,7 +1223,7 @@ const Home: React.FC = () => {
                             }}
                           />
                           <div className="absolute top-2 right-2 bg-white/90 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-800">
-                            {food.rating} ★
+                            {food.rating > 0 ? `${food.rating.toFixed(1)} ★` : 'New'}
                           </div>
                         </div>
                         <div className="p-3">

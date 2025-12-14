@@ -12,6 +12,11 @@ const getApiUrl = () => {
     return '/api';
   }
 
+  // If we are in production but not on Vercel (e.g. local preview), try to use relative path if on same domain
+  if (window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168.')) {
+    return '/api';
+  }
+
   return 'http://localhost:5000/api';
 };
 
@@ -45,8 +50,9 @@ export interface Attraction {
   name: string;
   category: string;
   description: string;
-  coverImage: string;
-  gallery: string[];
+  coverImage?: string;
+  gallery?: string[];
+  images?: Array<{ url: string; caption?: string; isPrimary?: boolean }>;
   location: {
     address: string;
     barangay: string;
@@ -88,9 +94,12 @@ export interface Attraction {
   };
   useOsmCoordinates?: boolean;
   stats: {
-    averageRating: number;
+    rating: number;
     reviewCount: number;
-    visitCount: number;
+    viewCount: number;
+    // Back-compat with older frontend code / seeds
+    averageRating?: number;
+    visitCount?: number;
   };
   isActive: boolean;
   isFeatured: boolean;
@@ -165,6 +174,8 @@ export interface Business {
   tagline?: string;
   description: string;
   images: string[];
+  coverImage?: string;
+  gallery?: string[];
   contact?: {
     phone?: string;
     email?: string;
@@ -205,21 +216,26 @@ export interface Business {
 }
 
 // Review types
+export type ReviewTargetType = 'attraction' | 'business' | 'guide';
+
 export interface Review {
   _id: string;
-  authorId: {
-    _id: string;
-    username: string;
-    avatar?: string;
-  };
+  userId:
+    | {
+        _id: string;
+        username: string;
+        avatar?: string;
+      }
+    | string;
   targetId: string;
-  targetType: 'Attraction' | 'Business' | 'Guide';
+  targetType: ReviewTargetType;
   rating: number;
-  title: string;
-  content: string;
-  photos: string[];
-  visitDate?: string;
-  isEditable: boolean;
+  title?: string;
+  text: string;
+  images: string[];
+  isEdited?: boolean;
+  editableUntil?: string;
+  status?: 'published' | 'flagged' | 'removed';
   createdAt: string;
   updatedAt: string;
 }
@@ -293,6 +309,14 @@ export interface Event {
 // QUESTS API
 // ======================
 
+export interface QuestTask {
+  _id?: string;
+  title: string;
+  description: string;
+  locationId?: string;
+  qrCodeData?: string;
+}
+
 export interface Quest {
   _id: string;
   title: string;
@@ -303,12 +327,11 @@ export interface Quest {
   totalExp: number;
   reward: string;
   isActive: boolean;
-  tasks: {
-    _id: string;
-    title: string;
-    description: string;
-    qrCodeData?: string;
-  }[];
+  startDate?: string;
+  endDate?: string;
+  tasks: QuestTask[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UserQuest {
@@ -336,9 +359,29 @@ export interface GameSettings {
   }>;
 }
 
+export interface CreateQuestData {
+  title: string;
+  slug?: string;
+  description: string;
+  image: string;
+  badgeImage: string;
+  reward: string;
+  totalExp?: number;
+  isActive?: boolean;
+  startDate?: string;
+  endDate?: string;
+  tasks: Omit<QuestTask, '_id'>[];
+}
+
+export interface UpdateQuestData extends Partial<CreateQuestData> {}
+
 export const questsApi = {
   getAll: () => {
     return apiClient<{ quests: Quest[] }>('/quests');
+  },
+
+  getAllAdmin: () => {
+    return apiClient<{ quests: Quest[] }>('/quests/admin/all');
   },
 
   getMyProgress: () => {
@@ -347,6 +390,26 @@ export const questsApi = {
 
   getById: (id: string) => {
     return apiClient<{ quest: Quest; userQuest: UserQuest | null }>(`/quests/${id}`);
+  },
+
+  create: (data: CreateQuestData) => {
+    return apiClient<{ quest: Quest; slug: string }>('/quests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  update: (id: string, data: UpdateQuestData) => {
+    return apiClient<{ quest: Quest }>(`/quests/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  delete: (id: string) => {
+    return apiClient<{ message: string }>(`/quests/${id}`, {
+      method: 'DELETE',
+    });
   },
 
   start: (id: string) => {
@@ -691,24 +754,31 @@ export interface OsmBusinessPlace {
 // ======================
 
 export const reviewsApi = {
-  getByTarget: (targetType: 'Attraction' | 'Business' | 'Guide', targetId: string) => {
-    return apiClient<{ reviews: Review[]; stats: { averageRating: number; reviewCount: number } }>(
-      `/reviews/${targetType.toLowerCase()}/${targetId}`
-    );
+  getByTarget: (targetType: ReviewTargetType, targetId: string, params?: { limit?: number; offset?: number }) => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('targetType', targetType);
+    searchParams.set('targetId', targetId);
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+
+    return apiClient<{
+      reviews: Review[];
+      stats: { averageRating: number; reviewCount: number };
+      pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+    }>(`/reviews?${searchParams.toString()}`);
   },
 
   getMine: () => {
-    return apiClient<{ reviews: Review[] }>('/reviews/mine');
+    return apiClient<{ reviews: Review[] }>('/reviews/me');
   },
 
   create: (data: {
     targetId: string;
-    targetType: 'Attraction' | 'Business' | 'Guide';
+    targetType: ReviewTargetType;
     rating: number;
-    title: string;
-    content: string;
-    photos?: string[];
-    visitDate?: string;
+    text: string;
+    title?: string;
+    images?: string[];
   }) => {
     return apiClient<{ review: Review }>('/reviews', {
       method: 'POST',
@@ -716,9 +786,9 @@ export const reviewsApi = {
     });
   },
 
-  update: (id: string, data: { rating?: number; title?: string; content?: string; photos?: string[] }) => {
+  update: (id: string, data: { rating?: number; title?: string; text?: string }) => {
     return apiClient<{ review: Review }>(`/reviews/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },

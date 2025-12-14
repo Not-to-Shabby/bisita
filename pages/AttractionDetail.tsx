@@ -1,13 +1,18 @@
 
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { ScanLine, Clock, MapPin, User, Info, Ticket } from 'lucide-react';
 import { getMedia } from '../data/mediaLibrary';
+import { attractionsApi, businessesApi, Attraction, Business } from '../services/api';
 
 const AttractionDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  const [remoteAttraction, setRemoteAttraction] = useState<Attraction | null>(null);
+  const [remoteBusiness, setRemoteBusiness] = useState<Business | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Expanded Data dictionary for Iligan Attractions & Businesses
   const attractionsData: Record<string, any> = {
@@ -103,14 +108,108 @@ const AttractionDetail: React.FC = () => {
     }
   };
 
-  const attraction = attractionsData[id || '1'] || attractionsData['1'];
+  const staticAttraction = useMemo(() => attractionsData[id || '1'] || attractionsData['1'], [id]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await attractionsApi.getById(id);
+        if (res.data?.attraction) {
+          setRemoteAttraction(res.data.attraction);
+          setIsLoading(false);
+          return;
+        }
+      } catch (err) {
+        // continue to business lookup
+      }
+
+      try {
+        const bizRes = await businessesApi.getById(id);
+        if (bizRes.data?.business) {
+          setRemoteBusiness(bizRes.data.business);
+        }
+      } catch (err) {
+        // swallow and fall back to static
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
+
+  const heroImage = useMemo(() => {
+    if (remoteAttraction || remoteBusiness) {
+      const primaryImage = remoteAttraction?.images?.[0]?.url || remoteBusiness?.images?.[0];
+      const coverImage = remoteAttraction?.coverImage || remoteBusiness?.coverImage;
+      const legacyFallback = remoteAttraction ? getMedia(remoteAttraction.legacyId || '') : getMedia(remoteBusiness?.legacyId || '');
+      return primaryImage || coverImage || legacyFallback || getMedia('tinagoFalls');
+    }
+    return staticAttraction?.image || getMedia('tinagoFalls');
+  }, [remoteAttraction, remoteBusiness, staticAttraction]);
+
+  const galleryImages = useMemo(() => {
+    if (remoteAttraction?.images?.length) {
+      return remoteAttraction.images.map((img) => img.url).filter(Boolean);
+    }
+    if (remoteBusiness?.images?.length) {
+      return remoteBusiness.images.filter(Boolean);
+    }
+    return [] as string[];
+  }, [remoteAttraction, remoteBusiness]);
+
+  const additionalImages = useMemo(() => {
+    if (galleryImages.length <= 1) return [] as string[];
+    return galleryImages.slice(1);
+  }, [galleryImages]);
+
+  const detailName = useMemo(() => {
+    return remoteAttraction?.name || remoteBusiness?.name || staticAttraction?.name || 'Attraction';
+  }, [remoteAttraction, remoteBusiness, staticAttraction]);
+
+  const detailLocation = useMemo(() => {
+    if (remoteAttraction) {
+      return remoteAttraction.location?.barangay || remoteAttraction.location?.address || staticAttraction?.location;
+    }
+    if (remoteBusiness) {
+      return remoteBusiness.location?.address;
+    }
+    return staticAttraction?.location;
+  }, [remoteAttraction, remoteBusiness, staticAttraction]);
+
+  const detailDescription = useMemo(() => {
+    return remoteAttraction?.description || remoteBusiness?.description || staticAttraction?.description || '';
+  }, [remoteAttraction, remoteBusiness, staticAttraction]);
+
+  const isBusiness = !!remoteBusiness;
+
+  const entranceFee = remoteAttraction?.visitorInfo?.fee || (staticAttraction as any)?.entranceFee || '';
+  const transportInfo = remoteAttraction?.visitorInfo?.difficulty || (staticAttraction as any)?.shuttleFee || '';
+  const operatingHours = remoteAttraction?.visitorInfo?.hours || (staticAttraction as any)?.hours || '';
+  const visitTip = remoteAttraction?.visitorInfo?.bestTimeToVisit || (staticAttraction as any)?.tips || '';
+
+  if (isLoading && !remoteAttraction && !remoteBusiness) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header showBack title="Loading attraction" />
+        <div className="flex items-center justify-center pt-32">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-sky-200 border-t-sky-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="relative h-80 overflow-hidden bg-slate-900 animate-gradient-pan">
       <img 
-        src={attraction.image} 
-        alt={attraction.name} 
+        src={heroImage} 
+        alt={detailName}
         className="w-full h-full object-cover scale-105 opacity-90"
         onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/800/600?nature' }}
       />
@@ -129,41 +228,64 @@ const AttractionDetail: React.FC = () => {
             </div>
          </div>
 
-       <h1 className="text-2xl font-bold text-slate-900 text-center mb-1 animate-fade-slide-up motion-delay-100">{attraction.name}</h1>
-       <p className="text-center text-sky-600 font-medium text-sm mb-6 animate-fade-slide-up motion-delay-150">{attraction.location}</p>
+      <h1 className="text-2xl font-bold text-slate-900 text-center mb-1 animate-fade-slide-up motion-delay-100">{detailName}</h1>
+          <p className="text-center text-sky-600 font-medium text-sm mb-6 animate-fade-slide-up motion-delay-150">{detailLocation}</p>
          
-       <p className="text-slate-600 leading-relaxed mb-6 text-sm text-justify animate-fade-slide-up motion-delay-200">
-            {attraction.description}
-         </p>
+         <p className="text-slate-600 leading-relaxed mb-6 text-sm text-justify animate-fade-slide-up motion-delay-200">
+          {detailDescription}
+        </p>
 
-       <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-100 shadow-sm animate-fade-slide-up motion-delay-250">
+         {!isBusiness && (
+         <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-100 shadow-sm animate-fade-slide-up motion-delay-250">
              <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                 <Info size={18} className="text-sky-600" />
-                 Visitor Information
+               <Info size={18} className="text-sky-600" />
+               Visitor Information
              </h3>
              <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500 flex items-center gap-2"><Ticket size={14}/> Entrance Fee</span>
+                <span className="font-bold text-slate-900">{entranceFee || '—'}</span>
+              </div>
+              {(transportInfo) && (
                 <div className="flex justify-between text-sm">
-                    <span className="text-slate-500 flex items-center gap-2"><Ticket size={14}/> Entrance Fee</span>
-                    <span className="font-bold text-slate-900">{attraction.entranceFee}</span>
+                  <span className="text-slate-500 flex items-center gap-2"><User size={14}/> Transport/Shuttle</span>
+                <span className="font-bold text-slate-900">{transportInfo}</span>
                 </div>
-                {attraction.shuttleFee !== 'N/A' && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-slate-500 flex items-center gap-2"><User size={14}/> Transport/Shuttle</span>
-                        <span className="font-bold text-slate-900">{attraction.shuttleFee}</span>
-                    </div>
-                )}
-                <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
-                    <span className="text-slate-500 flex items-center gap-2"><Clock size={14}/> Operating Hours</span>
-                    <span className="font-bold text-slate-900">{attraction.hours}</span>
-                </div>
+              )}
+              <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
+                <span className="text-slate-500 flex items-center gap-2"><Clock size={14}/> Operating Hours</span>
+                <span className="font-bold text-slate-900">{operatingHours || '—'}</span>
+              </div>
              </div>
-             
-             {attraction.tips && (
-               <div className="mt-4 bg-sky-100 p-3 rounded-lg animate-float-pulse">
-                     <p className="text-xs text-sky-800 font-medium">💡 Tip: {attraction.tips}</p>
-                 </div>
+               
+             {(visitTip) && (
+             <div className="mt-4 bg-sky-100 p-3 rounded-lg animate-float-pulse">
+                 <p className="text-xs text-sky-800 font-medium">💡 Tip: {visitTip}</p>
+               </div>
              )}
-         </div>
+           </div>
+         )}
+
+         {additionalImages.length > 0 && (
+            <div className="mb-8 animate-fade-slide-up motion-delay-275">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-slate-900">Gallery</h3>
+                <span className="text-xs text-slate-500">{galleryImages.length} photos</span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar">
+                {additionalImages.map((imgUrl, index) => (
+                  <div key={`${imgUrl}-${index}`} className="min-w-[180px] h-28 rounded-xl overflow-hidden shadow-sm border border-gray-100">
+                    <img
+                      src={imgUrl}
+                      alt={`${detailName} photo ${index + 2}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300?nature'; }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+         )}
 
          <button 
             onClick={() => navigate('/scan')}
@@ -200,7 +322,14 @@ const AttractionDetail: React.FC = () => {
       {/* Floating Review Button */}
       <div className="fixed bottom-6 right-6 z-40">
         <button 
-            onClick={() => navigate('/write-review')}
+            onClick={() => {
+              const reviewTargetId = remoteAttraction?._id || remoteBusiness?._id;
+              const reviewTargetType = remoteBusiness ? 'Business' : 'Attraction';
+              if (!reviewTargetId) return;
+              navigate(
+                `/write-review?targetId=${encodeURIComponent(reviewTargetId)}&type=${encodeURIComponent(reviewTargetType)}`
+              );
+            }}
           className="bg-sky-600 text-white p-4 rounded-full shadow-xl hover:bg-sky-700 transition-colors animate-marker-pop"
         >
             <span className="font-bold text-sm">Write Review</span>

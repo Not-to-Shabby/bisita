@@ -195,12 +195,19 @@ interface AttractionFormProps {
 }
 
 const AttractionForm: React.FC<AttractionFormProps> = ({ attraction, onClose, onSave }) => {
+  const initialImages = React.useMemo(() => {
+    if (!attraction?.images || attraction.images.length === 0) return [] as string[];
+    const primary = attraction.images.filter(img => img.isPrimary).map(img => img.url);
+    const secondary = attraction.images.filter(img => !img.isPrimary).map(img => img.url);
+    if (primary.length > 0) return [...primary, ...secondary];
+    return attraction.images.map(img => img.url);
+  }, [attraction]);
+
   const [formData, setFormData] = useState({
     name: attraction?.name || '',
     category: attraction?.category || 'waterfall',
     description: attraction?.description || '',
-    coverImage: attraction?.coverImage || '',
-    gallery: attraction?.gallery || [],
+    images: initialImages,
     address: attraction?.location?.address || '',
     barangay: attraction?.location?.barangay || '',
     lat: attraction?.location?.manualCoordinates?.lat
@@ -311,8 +318,7 @@ const AttractionForm: React.FC<AttractionFormProps> = ({ attraction, onClose, on
         name: formData.name,
         category: formData.category,
         description: formData.description,
-        coverImage: formData.coverImage,
-        gallery: formData.gallery,
+        images: formData.images.map((url, index) => ({ url, isPrimary: index === 0 })),
         location: {
           address: formData.address,
           barangay: formData.barangay,
@@ -358,11 +364,10 @@ const AttractionForm: React.FC<AttractionFormProps> = ({ attraction, onClose, on
   };
 
   const handleImagesChange = (urls: string[]) => {
-    if (urls.length > 0 && !formData.coverImage) {
-      setFormData(prev => ({ ...prev, coverImage: urls[0], gallery: urls.slice(1) }));
-    } else {
-      setFormData(prev => ({ ...prev, gallery: urls }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      images: urls,
+    }));
   };
 
   const tabs = [
@@ -461,27 +466,14 @@ const AttractionForm: React.FC<AttractionFormProps> = ({ attraction, onClose, on
                 />
               </div>
 
-              {/* Cover Image URL */}
+              {/* Images */}
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">Cover Image URL</label>
-                <input
-                  type="url"
-                  value={formData.coverImage}
-                  onChange={(e) => setFormData(prev => ({ ...prev, coverImage: e.target.value }))}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500"
-                  aria-label="Cover image URL"
-                />
-              </div>
-
-              {/* Gallery */}
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">Gallery Images</label>
+                <label className="text-sm font-medium text-slate-700 mb-1 block">Images (First image is cover)</label>
                 <ImageUploader
                   folder="attractions"
                   maxFiles={10}
                   onUploadComplete={handleImagesChange}
-                  existingImages={formData.gallery}
+                  existingImages={formData.images}
                 />
               </div>
 
@@ -1383,9 +1375,9 @@ const AdminAttractions: React.FC = () => {
               <div className="flex gap-4">
                 {/* Image */}
                 <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
-                  {attraction.coverImage ? (
+                  {attraction.images && attraction.images.length > 0 ? (
                     <img
-                      src={attraction.coverImage}
+                      src={attraction.images[0]?.url || ''}
                       alt={attraction.name}
                       className="w-full h-full object-cover"
                       onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/400/300' }}
@@ -1420,7 +1412,7 @@ const AdminAttractions: React.FC = () => {
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <span>{attraction.stats?.reviewCount || 0} reviews</span>
                     <span>•</span>
-                    <span>{attraction.stats?.averageRating?.toFixed(1) || '—'} rating</span>
+                    <span>{attraction.stats?.rating?.toFixed(1) || '—'} rating</span>
                   </div>
                 </div>
               </div>
