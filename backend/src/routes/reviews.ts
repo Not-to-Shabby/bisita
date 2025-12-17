@@ -10,6 +10,32 @@ import { requireAdmin, requireVerifiedEmail } from '../middleware/roles.js';
 
 const router = Router();
 
+const resolveTargetObjectId = async (
+  targetType: 'attraction' | 'business' | 'guide',
+  rawTargetId: unknown
+): Promise<mongoose.Types.ObjectId | null> => {
+  if (typeof rawTargetId !== 'string' || !rawTargetId.trim()) return null;
+  const value = rawTargetId.trim();
+
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    return new mongoose.Types.ObjectId(value);
+  }
+
+  // Allow legacy IDs as a fallback to avoid server 500s when older URLs are used.
+  if (targetType === 'attraction') {
+    const found = await Attraction.findOne({ legacyId: value }).select('_id').lean();
+    return found?._id ? new mongoose.Types.ObjectId(found._id) : null;
+  }
+
+  if (targetType === 'business') {
+    const found = await Business.findOne({ legacyId: value }).select('_id').lean();
+    return found?._id ? new mongoose.Types.ObjectId(found._id) : null;
+  }
+
+  const found = await User.findOne({ legacyId: value }).select('_id').lean();
+  return found?._id ? new mongoose.Types.ObjectId(found._id) : null;
+};
+
 // Helper to update target stats
 const updateTargetStats = async (
   targetType: string,
@@ -70,14 +96,19 @@ router.get(
 
       const { targetType, targetId, limit = 20, offset = 0 } = req.query;
 
-      const normalizedTargetId =
-        typeof targetId === 'string' && mongoose.Types.ObjectId.isValid(targetId)
-          ? new mongoose.Types.ObjectId(targetId)
-          : targetId;
+      const resolvedTargetId = await resolveTargetObjectId(
+        targetType as 'attraction' | 'business' | 'guide',
+        targetId
+      );
+
+      if (!resolvedTargetId) {
+        res.status(404).json({ error: `${String(targetType)} not found` });
+        return;
+      }
 
       const filter = {
         targetType,
-        targetId: normalizedTargetId,
+        targetId: resolvedTargetId,
         status: 'published',
       };
 
@@ -167,11 +198,17 @@ router.post(
 
       const { targetType, targetId, rating, text, title, images } = req.body;
 
+      const resolvedTargetId = await resolveTargetObjectId(targetType, targetId);
+      if (!resolvedTargetId) {
+        res.status(404).json({ error: `${targetType} not found` });
+        return;
+      }
+
       // Check for existing review (one per user per target)
       const existingReview = await Review.findOne({
         userId: req.user!._id,
         targetType,
-        targetId,
+        targetId: resolvedTargetId,
       });
 
       if (existingReview) {
@@ -185,11 +222,11 @@ router.post(
       // Verify target exists
       let target;
       if (targetType === 'attraction') {
-        target = await Attraction.findById(targetId);
+        target = await Attraction.findById(resolvedTargetId);
       } else if (targetType === 'business') {
-        target = await Business.findById(targetId);
+        target = await Business.findById(resolvedTargetId);
       } else {
-        target = await User.findById(targetId);
+        target = await User.findById(resolvedTargetId);
       }
       
       if (!target) {
@@ -201,7 +238,7 @@ router.post(
       const review = await Review.create({
         userId: req.user!._id,
         targetType,
-        targetId,
+        targetId: resolvedTargetId,
         rating,
         text,
         title,
@@ -215,13 +252,38 @@ router.post(
       });
 
       // Update target stats (async, don't wait)
-      updateTargetStats(targetType, targetId).catch(console.error);
+      updateTargetStats(targetType, resolvedTargetId).catch(console.error);
 
       // Populate user for response
       await review.populate('userId', 'username avatar');
 
       res.status(201).json({ review });
     } catch (error) {
+      if (error instanceof mongoose.Error.ValidationError) {
+        res.status(400).json({
+          error: error.message,
+          code: 'VALIDATION_ERROR',
+        });
+        return;
+      }
+
+      if (error instanceof mongoose.Error.CastError) {
+        res.status(400).json({
+          error: 'Invalid ID format',
+          code: 'INVALID_ID',
+        });
+        return;
+      }
+
+      // Handle unique index collisions (one review per user per target)
+      if (typeof (error as any)?.code === 'number' && (error as any).code === 11000) {
+        res.status(409).json({
+          error: 'You have already reviewed this item',
+          code: 'REVIEW_ALREADY_EXISTS',
+        });
+        return;
+      }
+
       console.error('Error creating review:', error);
       res.status(500).json({ error: 'Failed to create review' });
     }

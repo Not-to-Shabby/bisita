@@ -75,6 +75,7 @@ const reviewSchema = new Schema<IReview>(
     editableUntil: {
       type: Date,
       required: true,
+      default: () => new Date(Date.now() + 12 * 60 * 60 * 1000),
     },
     
     status: {
@@ -98,14 +99,7 @@ reviewSchema.index(
 // Index for listing reviews by target
 reviewSchema.index({ targetType: 1, targetId: 1, createdAt: -1 });
 
-// Pre-save hook to set editableUntil
-reviewSchema.pre('save', function (next) {
-  if (this.isNew) {
-    // 12 hours from now
-    this.editableUntil = new Date(Date.now() + 12 * 60 * 60 * 1000);
-  }
-  next();
-});
+// editableUntil is set via schema default to satisfy validation
 
 const Review = mongoose.model<IReview>('Review', reviewSchema);
 

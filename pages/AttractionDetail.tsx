@@ -2,9 +2,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { ScanLine, Clock, MapPin, User, Info, Ticket } from 'lucide-react';
+import { ScanLine, Clock, MapPin, User, Info, Ticket, Star } from 'lucide-react';
 import { getMedia } from '../data/mediaLibrary';
-import { attractionsApi, businessesApi, Attraction, Business } from '../services/api';
+import { attractionsApi, businessesApi, reviewsApi, Attraction, Business, Review } from '../services/api';
 
 const AttractionDetail: React.FC = () => {
   const { id } = useParams();
@@ -13,6 +13,9 @@ const AttractionDetail: React.FC = () => {
   const [remoteAttraction, setRemoteAttraction] = useState<Attraction | null>(null);
   const [remoteBusiness, setRemoteBusiness] = useState<Business | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<{ averageRating: number; reviewCount: number } | null>(null);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
 
   // Expanded Data dictionary for Iligan Attractions & Businesses
   const attractionsData: Record<string, any> = {
@@ -142,6 +145,30 @@ const AttractionDetail: React.FC = () => {
 
     fetchData();
   }, [id]);
+
+  // Fetch reviews when we have a remote attraction or business
+  useEffect(() => {
+    const fetchReviews = async () => {
+      const targetId = remoteAttraction?._id || remoteBusiness?._id;
+      const targetType = remoteBusiness ? 'business' : 'attraction';
+      if (!targetId) return;
+
+      setIsLoadingReviews(true);
+      try {
+        const response = await reviewsApi.getByTarget(targetType, targetId, { limit: 10, offset: 0 });
+        if (response.data) {
+          setReviews(response.data.reviews || []);
+          setReviewStats(response.data.stats || null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch reviews:', err);
+      } finally {
+        setIsLoadingReviews(false);
+      }
+    };
+
+    fetchReviews();
+  }, [remoteAttraction, remoteBusiness]);
 
   const heroImage = useMemo(() => {
     if (remoteAttraction || remoteBusiness) {
@@ -294,6 +321,98 @@ const AttractionDetail: React.FC = () => {
             <ScanLine size={20} />
             Scan QR for History & Facts
          </button>
+
+         {/* Reviews Section */}
+         {(remoteAttraction || remoteBusiness) && (
+           <div className="mb-8 animate-fade-slide-up motion-delay-325">
+             <div className="flex items-center justify-between mb-4">
+               <h3 className="font-bold text-slate-900">Reviews</h3>
+               {reviewStats && reviewStats.reviewCount > 0 && (
+                 <div className="flex items-center gap-2">
+                   <Star size={16} className="text-amber-500 fill-amber-500" />
+                   <span className="font-bold text-slate-900">{reviewStats.averageRating.toFixed(1)}</span>
+                   <span className="text-xs text-slate-500">({reviewStats.reviewCount})</span>
+                 </div>
+               )}
+             </div>
+
+             {isLoadingReviews ? (
+               <div className="flex justify-center py-8">
+                 <div className="animate-spin rounded-full h-8 w-8 border-4 border-sky-200 border-t-sky-600" />
+               </div>
+             ) : reviews.length === 0 ? (
+               <div className="bg-gray-50 rounded-xl p-6 text-center border border-gray-100">
+                 <p className="text-sm text-slate-500 mb-3">No reviews yet</p>
+                 <button
+                   onClick={() => {
+                     const reviewTargetId = remoteAttraction?._id || remoteBusiness?._id;
+                     const reviewTargetType = remoteBusiness ? 'Business' : 'Attraction';
+                     if (!reviewTargetId) return;
+                     navigate(`/write-review?targetId=${encodeURIComponent(reviewTargetId)}&type=${encodeURIComponent(reviewTargetType)}`);
+                   }}
+                   className="text-sm font-medium text-sky-600 hover:text-sky-700"
+                 >
+                   Be the first to review
+                 </button>
+               </div>
+             ) : (
+               <div className="space-y-4">
+                 {reviews.map((review) => {
+                   const username = typeof review.userId === 'object' ? review.userId.username : 'User';
+                   const avatar = typeof review.userId === 'object' ? review.userId.avatar : undefined;
+                   return (
+                     <div key={review._id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                       <div className="flex items-start gap-3 mb-2">
+                         <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                           {avatar ? (
+                             <img src={avatar} alt={username} className="w-full h-full object-cover" />
+                           ) : (
+                             <div className="w-full h-full flex items-center justify-center text-gray-400">
+                               <User size={20} />
+                             </div>
+                           )}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="flex items-center justify-between mb-1">
+                             <span className="font-medium text-slate-900 text-sm">{username}</span>
+                             <div className="flex items-center gap-1">
+                               {Array.from({ length: 5 }).map((_, i) => (
+                                 <Star
+                                   key={i}
+                                   size={14}
+                                   className={i < review.rating ? 'text-amber-500 fill-amber-500' : 'text-gray-300'}
+                                 />
+                               ))}
+                             </div>
+                           </div>
+                           {review.title && (
+                             <p className="font-medium text-slate-800 text-sm mb-1">{review.title}</p>
+                           )}
+                           <p className="text-slate-600 text-sm leading-relaxed">{review.text}</p>
+                           {review.images && review.images.length > 0 && (
+                             <div className="flex gap-2 mt-2 overflow-x-auto">
+                               {review.images.map((img, idx) => (
+                                 <img
+                                   key={idx}
+                                   src={img}
+                                   alt={`Review photo ${idx + 1}`}
+                                   className="w-20 h-20 rounded-lg object-cover"
+                                 />
+                               ))}
+                             </div>
+                           )}
+                           <p className="text-xs text-slate-400 mt-2">
+                             {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             )}
+           </div>
+         )}
 
          {/* Guides */}
          <div className="flex justify-between items-center mb-4">

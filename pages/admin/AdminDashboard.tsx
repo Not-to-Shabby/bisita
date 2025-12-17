@@ -16,7 +16,7 @@ import {
   QrCode
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { attractionsApi, businessesApi, guidesApi, Attraction, Business, Guide } from '../../services/api';
+import { attractionsApi, businessesApi, guidesApi, usersApi } from '../../services/api';
 
 // ======================
 // STAT CARD
@@ -114,6 +114,7 @@ const AdminDashboard: React.FC = () => {
     businesses: 0,
     pendingVerifications: 0,
     guides: 0,
+    users: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,21 +134,24 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [attractionsRes, businessesRes, guidesRes] = await Promise.all([
+        const [attractionsRes, businessesRes, guidesRes, usersRes] = await Promise.all([
           attractionsApi.getAll(),
           businessesApi.getAll(),
           guidesApi.getAll(),
+          usersApi.getAll(),
         ]);
 
         const attractions = attractionsRes.data?.attractions || [];
         const businesses = businessesRes.data?.businesses || [];
         const guides = guidesRes.data?.guides || [];
+        const users = usersRes.data?.users || [];
 
         setStats({
           attractions: attractions.length,
           businesses: businesses.length,
           pendingVerifications: businesses.filter(b => !b.isVerified).length,
           guides: guides.length,
+          users: users.length,
         });
       } catch (err) {
         setError('Failed to load dashboard data');
@@ -212,7 +216,7 @@ const AdminDashboard: React.FC = () => {
             label="Guides"
             value={stats.guides}
             color="bg-amber-500"
-            onClick={() => navigate('/admin/guides')}
+            onClick={() => navigate('/admin/users?role=guide')}
           />
           <StatCard
             icon={Star}
@@ -256,9 +260,9 @@ const AdminDashboard: React.FC = () => {
           <div className="h-[1px] bg-gray-100 mx-4" />
           <MenuRow
             icon={Users}
-            label="Manage Guides"
-            badge={stats.guides}
-            onClick={() => navigate('/admin/guides')}
+            label="Manage Users"
+            badge={stats.users}
+            onClick={() => navigate('/admin/users')}
           />
           <div className="h-[1px] bg-gray-100 mx-4" />
           <MenuRow
@@ -309,8 +313,8 @@ const AdminDashboard: React.FC = () => {
           <div className="h-[1px] bg-gray-100 mx-4" />
           <MenuRow
             icon={Settings}
-            label="Settings"
-            onClick={() => alert('Settings coming soon!')}
+            label="Game Settings"
+            onClick={() => navigate('/admin/game-settings')}
           />
         </div>
       </div>

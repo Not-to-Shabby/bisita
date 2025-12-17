@@ -1083,10 +1083,24 @@ export const usersApi = {
     return apiClient<{ users: any[] }>('/users');
   },
 
+  setEmailVerified: (id: string, isEmailVerified: boolean) => {
+    return apiClient<{ user: any }>(`/users/${id}/email-verified`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isEmailVerified }),
+    });
+  },
+
   updateRole: (id: string, data: { role: string; managedEntityId?: string }) => {
     return apiClient<{ user: any }>(`/users/${id}/role`, {
       method: 'PATCH',
       body: JSON.stringify(data),
+    });
+  },
+
+  resetPassword: (id: string, password: string) => {
+    return apiClient<{ message: string }>(`/users/${id}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ password }),
     });
   },
 };

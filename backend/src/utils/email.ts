@@ -53,8 +53,17 @@ export const sendVerificationEmail = async (
     });
 
     return true;
-  } catch (error) {
-    console.error('Failed to send verification email:', error);
+  } catch (error: any) {
+    console.error('❌ Failed to send verification email:', error.message || error);
+    
+    // Check for Resend test mode restriction
+    if (error?.statusCode === 403 || error?.message?.includes('validation_error')) {
+      console.log('\n⚠️  RESEND TEST MODE DETECTED');
+      console.log('   You can only send emails to the address registered with your Resend account.');
+      console.log('   To verify this user locally, use the link below:\n');
+      console.log(`👉 VERIFY LINK: ${verifyUrl}\n`);
+    }
+    
     return false;
   }
 };
@@ -109,8 +118,17 @@ export const sendPasswordResetEmail = async (
 
     console.log('📧 Password reset email sent successfully:', result);
     return true;
-  } catch (error) {
-    console.error('❌ Failed to send password reset email:', error);
+  } catch (error: any) {
+    console.error('❌ Failed to send password reset email:', error.message || error);
+    
+    // Check for Resend test mode restriction
+    if (error?.statusCode === 403 || error?.message?.includes('validation_error')) {
+      console.log('\n⚠️  RESEND TEST MODE DETECTED');
+      console.log('   You can only send emails to the address registered with your Resend account.');
+      console.log('   To reset the password locally, use the link below:\n');
+      console.log(`👉 RESET LINK: ${resetUrl}\n`);
+    }
+    
     return false;
   }
 };

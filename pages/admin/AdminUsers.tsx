@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../../components/Header';
 import { 
   Search, 
@@ -7,11 +7,14 @@ import {
   User as UserIcon, 
   Briefcase, 
   MapPin,
+  MailCheck,
+  MailX,
   Loader2,
   AlertCircle,
   X,
   Edit2,
-  Check
+  Check,
+  Key
 } from 'lucide-react';
 import { usersApi } from '../../services/api';
 
@@ -22,11 +25,13 @@ interface User {
   role: string;
   avatar?: string;
   managedEntityId?: string;
+  isEmailVerified: boolean;
   createdAt: string;
 }
 
 const AdminUsers: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +43,12 @@ const AdminUsers: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<string>('');
   const [managedEntityId, setManagedEntityId] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [verifyingUserId, setVerifyingUserId] = useState<string | null>(null);
+
+  // Password Reset Modal state
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -95,10 +106,81 @@ const AdminUsers: React.FC = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleToggleEmailVerified = async (user: User) => {
+    const nextValue = !user.isEmailVerified;
+    const confirmationText = nextValue
+      ? `Manually verify email for ${user.email}? This will allow them to write reviews and access verified-only features.`
+      : `Mark ${user.email} as NOT verified? This may block them from writing reviews.`;
+
+    const didConfirm = window.confirm(confirmationText);
+    if (!didConfirm) return;
+
+    setVerifyingUserId(user.id);
+    try {
+      const response = await usersApi.setEmailVerified(user.id, nextValue);
+      if (!response.data) {
+        alert(response.error || 'Failed to update email verification');
+        return;
+      }
+
+      setUsers((currentUsers) =>
+        currentUsers.map((currentUser) =>
+          currentUser.id === user.id
+            ? { ...currentUser, isEmailVerified: nextValue }
+            : currentUser
+        )
+      );
+    } catch {
+      alert('An error occurred while updating email verification');
+    } finally {
+      setVerifyingUserId(null);
+    }
+  };
+
+  const handlePasswordResetClick = (user: User) => {
+    setEditingUser(user);
+    setNewPassword('');
+    setIsPasswordModalOpen(true);
+  };
+
+  const handleSavePassword = async () => {
+    if (!editingUser || !newPassword) return;
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const response = await usersApi.resetPassword(editingUser.id, newPassword);
+      if (response.data) {
+        alert('Password updated successfully');
+        setIsPasswordModalOpen(false);
+        setEditingUser(null);
+      } else {
+        alert(response.error || 'Failed to reset password');
+      }
+    } catch (err) {
+      alert('An error occurred while resetting password');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  const roleFilterParam = (searchParams.get('role') || '').toLowerCase();
+  const roleFilter = ['tourist', 'guide', 'business_owner', 'manager', 'admin'].includes(roleFilterParam)
+    ? roleFilterParam
+    : '';
+
+  const filteredUsers = users.filter(user => {
+    const matchesQuery =
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesRole = roleFilter ? user.role === roleFilter : true;
+
+    return matchesQuery && matchesRole;
+  });
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -108,6 +190,12 @@ const AdminUsers: React.FC = () => {
       case 'business_owner': return 'bg-amber-100 text-amber-700';
       default: return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  const getEmailBadge = (isEmailVerified: boolean) => {
+    return isEmailVerified
+      ? { label: 'Email verified', className: 'bg-emerald-100 text-emerald-700' }
+      : { label: 'Email not verified', className: 'bg-rose-100 text-rose-700' };
   };
 
   return (
@@ -126,6 +214,22 @@ const AdminUsers: React.FC = () => {
             className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
+
+        {roleFilter && (
+          <div className="mb-4 flex items-center justify-between bg-sky-50 border border-sky-100 rounded-xl px-4 py-3">
+            <div className="text-sm text-slate-700">
+              Filtering by role: <span className="font-bold uppercase tracking-wide">{roleFilter.replace('_', ' ')}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/users')}
+              className="text-sm font-medium text-sky-700 hover:text-sky-800"
+              aria-label="Clear role filter"
+            >
+              Clear
+            </button>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -166,6 +270,9 @@ const AdminUsers: React.FC = () => {
                         <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${getRoleBadgeColor(user.role)}`}>
                           {user.role.replace('_', ' ')}
                         </span>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${getEmailBadge(user.isEmailVerified).className}`}>
+                          {getEmailBadge(user.isEmailVerified).label}
+                        </span>
                         {user.role === 'manager' && user.managedEntityId && (
                           <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
                             <Briefcase size={10} />
@@ -175,20 +282,113 @@ const AdminUsers: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={() => handleEditClick(user)}
-                    className="p-2 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
-                    aria-label="Edit role"
-                  >
-                    <Edit2 size={18} />
-                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleToggleEmailVerified(user)}
+                      disabled={verifyingUserId === user.id}
+                      className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                      aria-label={user.isEmailVerified ? 'Mark email as not verified' : 'Manually verify email'}
+                    >
+                      {verifyingUserId === user.id ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : user.isEmailVerified ? (
+                        <MailCheck size={18} />
+                      ) : (
+                        <MailX size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handlePasswordResetClick(user)}
+                      className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      aria-label="Reset password"
+                    >
+                      <Key size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleEditClick(user)}
+                      className="p-2 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
+                      aria-label="Edit role"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
           </div>
         )}
       </div>
+
+      {/* Password Reset Modal */}
+      {isPasswordModalOpen && editingUser && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-fade-slide-up">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-lg">Reset User Password</h3>
+              <button 
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-full"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  User
+                </label>
+                <div className="p-3 bg-gray-50 rounded-xl text-slate-600 text-sm">
+                  {editingUser.username} ({editingUser.email})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  New Password
+                </label>
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Must be at least 6 characters.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="flex-1 py-3 px-4 border border-gray-200 text-slate-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSavePassword}
+                disabled={isResettingPassword}
+                className="flex-1 py-3 px-4 bg-amber-600 text-white font-medium rounded-xl hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isResettingPassword ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <Key size={18} />
+                    Reset Password
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Role Modal */}
       {isModalOpen && editingUser && (

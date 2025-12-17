@@ -751,9 +751,9 @@ const Home: React.FC = () => {
                             <span className="text-[10px] font-bold bg-white/20 px-3 py-1 rounded-full uppercase tracking-wider">
                               {progressPercent === 100 ? 'Completed' : progressPercent > 0 ? 'Active Quest' : 'New Quest'}
                             </span>
-                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner border border-white/10">
+                            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm shadow-inner border border-white/10 overflow-hidden">
                               {quest.badgeImage ? (
-                                <img src={quest.badgeImage} alt="Badge" className="w-10 h-10 object-contain drop-shadow-sm" />
+                                <img src={quest.badgeImage} alt="Badge" className="w-full h-full object-cover" />
                               ) : (
                                 <Trophy size={32} className="text-yellow-300 drop-shadow-sm" />
                               )}
